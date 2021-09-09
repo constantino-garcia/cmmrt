@@ -89,6 +89,6 @@ rt_data/
 .mypy_cache/
 
 # Residuals from model training
-cmmrt/models/catboost_info/
-cmmrt/models/es.pth
+cmmrt/rt/models/catboost_info/
+cmmrt/rt/models/es.pth
  

@@ -5,8 +5,8 @@ from catboost import Pool
 from sklearn.base import BaseEstimator
 from sklearn.base import RegressorMixin
 
-from cmmrt.models.base.PipelineWrapper import RTRegressor
-from cmmrt.utils.data import is_non_retained
+from cmmrt.rt.models.base.PipelineWrapper import RTRegressor
+from cmmrt.rt.data import is_non_retained
 
 
 class _CatBoostRegressor(BaseEstimator, RegressorMixin):

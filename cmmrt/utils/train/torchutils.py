@@ -7,6 +7,7 @@ from torch.utils.data import TensorDataset
 
 from cmmrt.utils.train.model_selection import stratified_train_test_split
 
+_FLOAT = 'float32'
 
 class EarlyStopping:
     """https://github.com/Bjarten/early-stopping-pytorch"""
@@ -85,3 +86,17 @@ def torch_dataloaders(X, y, batch_size, test_size=0.0, n_strats=6):
         return train_loader, test_loader
     else:
         return train_loader
+
+
+def to_numpy(x):
+    if torch.is_tensor(x):
+        return x.cpu().numpy().astype(_FLOAT)
+    else:
+        return x.astype(_FLOAT)
+
+
+def to_torch(x, device):
+    if torch.is_tensor(x):
+        return x.to(device)
+    else:
+        return torch.tensor(x, requires_grad=False, dtype=torch.float32).to(device)

@@ -7,14 +7,15 @@ from lightgbm import LGBMRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import RepeatedKFold
 
-from cmmrt.models.gbm.xgboost import SelectiveXGBRegressor
-from cmmrt.models.preprocessor.Preprocessors import Preprocessor
-from cmmrt.models.ensemble.Blender import Blender
-from cmmrt.models.gp.DKL import SkDKL
-from cmmrt.models.gbm.WeightedCatBoostRegressor import WeightedCatBoostRegressor
-from cmmrt.models.nn.SkDnn import SkDnn
-from cmmrt.utils.data import AlvadescDataset
+from cmmrt.rt.models.gbm.xgboost import SelectiveXGBRegressor
+from cmmrt.rt.models.preprocessor.Preprocessors import Preprocessor
+from cmmrt.rt.models.ensemble.Blender import Blender
+from cmmrt.rt.models.gp.DKL import SkDKL
+from cmmrt.rt.models.gbm.WeightedCatBoostRegressor import WeightedCatBoostRegressor
+from cmmrt.rt.models.nn import SkDnn
+from cmmrt.rt.data import AlvadescDataset
 from cmmrt.utils.train.param_search import param_search
+from cmmrt.utils.generic_utils import handle_saving_dir
 
 BlenderConfig = namedtuple('BlenderConfig', ['train_size', 'n_strats', 'random_state'])
 ParamSearchConfig = namedtuple('ParamSearchConfig', ['storage', 'study_prefix', 'param_search_cv', 'n_trials'])
@@ -130,6 +131,12 @@ def create_base_parser(default_storage, default_study, description=""):
     return parser
 
 
+def create_train_parser(default_storage, default_study):
+    parser = create_base_parser(default_storage, default_study, "Train blender and all base-models")
+    parser.add_argument('--save_to',  type=str, default='.', help='folder where to save the preprocessor and regressor models')
+    return parser
+
+
 def load_data_and_configs(args, download_directory):
     alvadesc_data = AlvadescDataset(download_directory)
     if args.smoke_test:
@@ -153,15 +160,14 @@ def load_data_and_configs(args, download_directory):
 
 
 if __name__ == '__main__':
-    parser = create_base_parser(
-        description="Train Blender", default_storage="sqlite:///../../models/optuna/train.db", default_study="train"
-    )
+    import os
+    parser = create_train_parser(default_storage="sqlite:///train.db", default_study="train")
     args = parser.parse_args()
+    handle_saving_dir(args.save_to)
+
     print(args)
 
-    alvadesc_data, param_search_config, blender_config = load_data_and_configs(args, download_directory="../../rt_data")
-
-
+    alvadesc_data, param_search_config, blender_config = load_data_and_configs(args, download_directory="rt_data")
 
     preprocessor, blender = (
         tune_and_fit(alvadesc_data, param_search_config=param_search_config, blender_config=blender_config,
@@ -169,7 +175,7 @@ if __name__ == '__main__':
     )
 
     print("Saving preprocessor and blender (with base models)")
-    with open("../../models/preprocessor.pkl", "wb") as f:
+    with open(os.path.join(args.save_to, "preprocessor.pkl"), "wb") as f:
         pickle.dump(preprocessor, f)
-    with open("../../models/blender.pkl", "wb") as f:
+    with open(os.path.join(args.save_to, "blender.pkl"), "wb") as f:
         pickle.dump(blender, f)

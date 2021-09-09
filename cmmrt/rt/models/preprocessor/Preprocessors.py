@@ -8,11 +8,11 @@ from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from cmmrt.models.gbm.xgboost import create_clf
-from cmmrt.models.gbm.xgboost import train_clf
-from cmmrt.models.preprocessor.ThresholdSelectors import CorThreshold
-from cmmrt.utils.data import binary_features_cols
-from cmmrt.utils.data import is_non_retained
+from cmmrt.rt.models.gbm.xgboost import create_clf
+from cmmrt.rt.models.gbm.xgboost import train_clf
+from cmmrt.rt.models.preprocessor.ThresholdSelectors import CorThreshold
+from cmmrt.rt.data import binary_features_cols
+from cmmrt.rt.data import is_non_retained
 
 
 class Preprocessor(BaseEstimator, TransformerMixin):

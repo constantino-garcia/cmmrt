@@ -10,7 +10,7 @@ from torch.optim.swa_utils import SWALR
 from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
 
-from cmmrt.models.base.PipelineWrapper import RTRegressor
+from cmmrt.rt.models.base.PipelineWrapper import RTRegressor
 
 
 class _DnnModel(nn.Module):

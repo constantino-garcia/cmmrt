@@ -8,7 +8,7 @@ from sklearn.base import ClassifierMixin
 from sklearn.model_selection import cross_val_score
 from xgboost import XGBRegressor, XGBClassifier
 
-from cmmrt.models.base.PipelineWrapper import RTRegressor
+from cmmrt.rt.models.base.PipelineWrapper import RTRegressor
 
 _ACCURACY = True
 

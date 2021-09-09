@@ -1,4 +1,3 @@
-import tempfile
 import os
 import tempfile
 
@@ -7,16 +6,17 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import median_absolute_error
 from sklearn.model_selection import StratifiedKFold
 
-from cmmrt.models.train_model import create_base_parser
-from cmmrt.models.train_model import load_data_and_configs
-from cmmrt.models.train_model import tune_and_fit
 from cmmrt.utils.train.model_selection import stratify_y
+from cmmrt.rt.models import create_base_parser
+from cmmrt.rt.models import load_data_and_configs
+from cmmrt.rt.models import tune_and_fit
+from cmmrt.utils.generic_utils import handle_saving_dir
 
 
 def create_cv_parser(default_storage, default_study, description):
     parser = create_base_parser(default_storage=default_storage, default_study=default_study, description=description)
     parser.add_argument("--cv_folds", type=int, default=5, help="Number of folds to be used for CV")
-    parser.add_argument("--output", type=str, default=os.path.join(tempfile.gettempdir(), "cv_results.csv"),
+    parser.add_argument("--csv_output", type=str, default=os.path.join(tempfile.gettempdir(), "cv_results.csv"),
                         help="CSV file to store the CV results")
     return parser
 
@@ -33,7 +33,7 @@ def evaluate_all_estimators(blender, X_test, y_test, metrics, fold_number):
 
 if __name__ == '__main__':
     parser = create_cv_parser(
-        description="Cross-validate Blender", default_storage="sqlite:///../../models/optuna/cv.db", default_study="cv"
+        description="Cross-validate Blender", default_storage="sqlite:///cv.db", default_study="cv"
     )
     args = parser.parse_args()
 
@@ -64,7 +64,7 @@ if __name__ == '__main__':
         )
     results = pd.concat(results, axis=0)
 
-    print(f"Saving results to {args.output}")
+    print(f"Saving results to {args.csv_output}")
     print(results)
     results.to_csv(args.output, index=False)
 

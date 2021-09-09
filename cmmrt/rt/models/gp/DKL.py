@@ -10,7 +10,7 @@ from sklearn.base import BaseEstimator
 from sklearn.base import RegressorMixin
 from torch import nn
 
-from cmmrt.models.base.PipelineWrapper import RTRegressor
+from cmmrt.rt.models.base.PipelineWrapper import RTRegressor
 from cmmrt.utils.train.torchutils import EarlyStopping
 from cmmrt.utils.train.torchutils import torch_dataloaders
 
