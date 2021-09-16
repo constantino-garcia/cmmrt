@@ -12,7 +12,7 @@ from cmmrt.rt.models.preprocessor.Preprocessors import Preprocessor
 from cmmrt.rt.models.ensemble.Blender import Blender
 from cmmrt.rt.models.gp.DKL import SkDKL
 from cmmrt.rt.models.gbm.WeightedCatBoostRegressor import WeightedCatBoostRegressor
-from cmmrt.rt.models.nn import SkDnn
+from cmmrt.rt.models.nn.SkDnn import SkDnn
 from cmmrt.rt.data import AlvadescDataset
 from cmmrt.utils.train.param_search import param_search
 from cmmrt.utils.generic_utils import handle_saving_dir

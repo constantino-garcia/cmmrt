@@ -13,10 +13,10 @@ from sklearn.linear_model import ElasticNet
 from xgboost import XGBClassifier
 from xgboost import XGBRegressor
 
-from rt.models.gbm import SelectiveXGBRegressor
-from rt.models.ensemble.Blender import Blender
-from rt.models.gp import SkDKL
-from rt.models.nn import SkDnn
+from cmmrt.rt.models.gbm.xgboost import SelectiveXGBRegressor
+from cmmrt.rt.models.ensemble.Blender import Blender
+from cmmrt.rt.models.gp.DKL import SkDKL
+from cmmrt.rt.models.nn.SkDnn import SkDnn
 from cmmrt.utils.train.loss import truncated_medae_scorer
 
 

@@ -30,7 +30,7 @@ class WeightedXGBClassifier(BaseEstimator, ClassifierMixin):
 
     def fit(self, X, y):
         params = self._get_xgb_params()
-        self._model = XGBClassifier(**params)
+        self._model = XGBClassifier(**params, use_label_encoder=False)
         self._model.fit(X, y)
         return self
 
@@ -42,7 +42,8 @@ class WeightedXGBClassifier(BaseEstimator, ClassifierMixin):
 
 
 def _get_study_params(study_prefix=''):
-    _STORAGE = 'sqlite:///optuna_data/retained.db'
+    # FIXME: should be tunable by the user!
+    _STORAGE = 'sqlite:///retained.db'
     name = 'retained_non-retained' if study_prefix == '' else study_prefix + '-retained_non-retained'
     return name, _STORAGE
 
