@@ -1,4 +1,4 @@
-.PHONY: clean data lint requirements sync_data_to_s3 sync_data_from_s3
+.PHONY: clean create_environment lint install test_predictor test_projections train_predictor train_projections
 
 #################################################################################
 # GLOBALS                                                                       #
@@ -19,11 +19,15 @@ endif
 # COMMANDS                                                                      #
 #################################################################################
 
-## Install Python Dependencies
-requirements: test_environment
+## Install Python Dependencies and cmmrt package
+install: 
 	$(PYTHON_INTERPRETER) -m pip install -U pip setuptools wheel
 	# $(PYTHON_INTERPRETER) -m pip install -r requirements.txt
 	$(PYTHON_INTERPRETER) setup.py install
+
+## Uninstall cmmrt package
+uninstall:
+	$(PYTHON_INTERPRETER) -m pip uninstall cmmrt -y
 
 ## Delete all compiled Python files
 clean:
@@ -51,10 +55,6 @@ else
 	@bash -c "source `which virtualenvwrapper.sh`;mkvirtualenv $(PROJECT_NAME) --python=$(PYTHON_INTERPRETER)"
 	@echo ">>> New virtualenv created. Activate with:\nworkon $(PROJECT_NAME)"
 endif
-
-## Test python environment is setup correctly
-test_environment:
-	$(PYTHON_INTERPRETER) test_environment.py
 
 #################################################################################
 # PROJECT RULES                                                                 #
