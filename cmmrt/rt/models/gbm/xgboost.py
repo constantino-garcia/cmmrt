@@ -10,7 +10,7 @@ from xgboost import XGBRegressor, XGBClassifier
 
 from cmmrt.rt.models.base.PipelineWrapper import RTRegressor
 
-_ACCURACY = True
+_ACCURACY = False
 
 
 class WeightedXGBClassifier(BaseEstimator, ClassifierMixin):

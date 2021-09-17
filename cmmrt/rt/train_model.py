@@ -62,6 +62,7 @@ def create_blender(desc_cols, fgp_cols, binary_cols, blender_config):
 
 
 def tune_and_fit(alvadesc_data, param_search_config, blender_config, smoke_test=False):
+    print(f"Starting tune_and_fit with data with dim ({alvadesc_data.X.shape[0]},{alvadesc_data.X.shape[1]})")
     print("Preprocessing...")
     preprocessor = Preprocessor(
         storage=param_search_config.storage,

@@ -112,7 +112,7 @@ def _(estimator: SkDnn, trial):
         'T0': T0,
         'annealing_rounds': trial.suggest_int('annealing_rounds', 2, 5),
         'swa_epochs': trial.suggest_int('swa_epochs', 5, T0),
-        'var_p': trial.suggest_uniform('var_p', 0.8, 1.0)
+        'var_p': trial.suggest_uniform('var_p', 0.9, 1.0)
     }
     return params
 
