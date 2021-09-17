@@ -132,7 +132,7 @@ def create_parser():
     my_parser.add_argument('-d', '--device', type=str, default='cpu')
     my_parser.add_argument('-m', '--mean', type=str, default='zero')  # mlp_mean or not
     my_parser.add_argument('-f', '--feat', action='store_true')  # feature_extraction or not
-    my_parser.add_argument('-k', '--kernel', type=str, default='spectral_mixture')
+    my_parser.add_argument('-k', '--kernel', type=str, default='rbf+linear')
     my_parser.add_argument('-r', '--results', help='file prefix for the figures/results',
                            type=str)
     my_parser.add_argument('-s', '--save_to', type=str, default='.', help='folder where to save the figures/results')
