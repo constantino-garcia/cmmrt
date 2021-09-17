@@ -36,9 +36,8 @@ class _CatBoostRegressor(BaseEstimator, RegressorMixin):
 
 
 class WeightedCatBoostRegressor(RTRegressor):
-    def __init__(self, nr_weight,
-                 use_col_indices='all', binary_col_indices=None, var_p=0, transform_output=False
-                 ):
+    def __init__(self, nr_weight, use_col_indices='all', binary_col_indices=None, var_p=0, transform_output=False):
+        super().__init__(use_col_indices, binary_col_indices, var_p, transform_output)
         args, _, _, values = inspect.getargvalues(inspect.currentframe())
         values.pop("self")
         for arg, val in values.items():

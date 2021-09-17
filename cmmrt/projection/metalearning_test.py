@@ -22,7 +22,7 @@ def plot_projection(proj_data, support_data):
         proj_data.ub.values,
         color="C0",
         alpha=0.2,
-        )
+    )
     # mean has to be accessed with the name so that is not confused with the method mean()
     plt.plot(proj_data.x.values, proj_data['mean'].values, 'C0', lw=2)
     plt.plot(proj_data.x.values, proj_data.y.values, "kx", mew=2)
@@ -87,7 +87,7 @@ def meta_test(gp, mll, system_data, scaler, args, test_size, support=None):
     })
 
     relative_errors = (
-            np.abs(all_data.y.values.flatten() - all_data[['mean']].values.flatten()) / all_data.y.values.flatten()
+        np.abs(all_data.y.values.flatten() - all_data[['mean']].values.flatten()) / all_data.y.values.flatten()
     )
 
     return all_data, support_data, relative_errors, loss
@@ -110,7 +110,7 @@ if __name__ == '__main__':
     if args.testsize == 0:
         args.testsize = np.array([10, 20, 25, 30, 40, 50])
 
-    dat, systems, scaler = load_xabier_projections("../../rt_data", remove_non_retained=True)
+    dat, _, scaler = load_xabier_projections("../../rt_data", remove_non_retained=True)
 
     systems = ["FEM_long", "LIFE_old", "FEM_orbitrap_plasma", "RIKEN"]
     xabier_cuttoffs = [5, 1, 2, 1]
@@ -148,7 +148,7 @@ if __name__ == '__main__':
             all_data.to_csv(results_filename + '.csv')
             support_data.to_csv(results_filename + '_support.csv')
 
-        f = plt.figure(figsize=(16, 9))
-        plot_projection(all_data, support_data)
-        plt.title(exclude_system)
-        f.savefig(results_filename + '.png', bbox_inches='tight')
+            f = plt.figure(figsize=(16, 9))
+            plot_projection(all_data, support_data)
+            plt.title(exclude_system)
+            f.savefig(results_filename + '.png', bbox_inches='tight')

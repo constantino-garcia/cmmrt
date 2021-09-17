@@ -22,7 +22,8 @@ endif
 ## Install Python Dependencies
 requirements: test_environment
 	$(PYTHON_INTERPRETER) -m pip install -U pip setuptools wheel
-	$(PYTHON_INTERPRETER) -m pip install -r requirements.txt
+	# $(PYTHON_INTERPRETER) -m pip install -r requirements.txt
+	$(PYTHON_INTERPRETER) setup.py install
 
 ## Delete all compiled Python files
 clean:
@@ -55,31 +56,31 @@ endif
 test_environment:
 	$(PYTHON_INTERPRETER) test_environment.py
 
-install: 
-	$(PYTHON_INTERPRETER) setup.py install
-
 #################################################################################
 # PROJECT RULES                                                                 #
 #################################################################################
+## Train all RT predictors using hyperparameter tuning 
 train_predictor:
 	$(PYTHON_INTERPRETER) cmmrt/rt/train_model.py \
 		--storage sqlite:///results/optuna/train.db --save_to saved_models \
 		--smoke_test # FIXME
 
+## Test the performance of all RT predictors using nested cross-validation 
 test_predictor: 
 	$(PYTHON_INTERPRETER) cmmrt/rt/validate_model.py \
 		--storage sqlite:///results/optuna/cv.db --csv_output results/rt \
 		--smoke_test # FIXME
 
+## Meta-train a GP for projections using all data from PredRet database
 train_projections: 
 	$(PYTHON_INTERPRETER) cmmrt/projection/metalearning_train.py -s saved_models \
 		-e 10 # FIXME
 
-
+## Test the performance of meta-training for projections using 4 reference CMs
 test_projections:
 	$(PYTHON_INTERPRETER) cmmrt/projection/metalearning_test.py -s results/projection \
 		-e 10 # FIXME
-
+#
 
 #################################################################################
 # Self Documenting Commands                                                     #

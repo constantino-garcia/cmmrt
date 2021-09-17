@@ -177,10 +177,10 @@ class _SkDKL(BaseEstimator, RegressorMixin):
 
 
 class SkDKL(RTRegressor):
-    def __init__(self, out_features, kernel='linear', hidden_1=1512, hidden_2=128, dropout=0.5,
-                 use_bn_out=False, lr=1e-3, batch_size=512, train_epochs=5000,
-                 test_size=0.1, scheduler_patience=10, early_stopping=25, device='cuda',
-                 use_col_indices='all', binary_col_indices=None, var_p=0, transform_output=True):
+    def __init__(self, out_features, kernel='linear', hidden_1=1512, hidden_2=128, dropout=0.5, use_bn_out=False,
+                 lr=1e-3, batch_size=512, train_epochs=5000, test_size=0.1, scheduler_patience=10, early_stopping=25,
+                 device='cuda', use_col_indices='all', binary_col_indices=None, var_p=0, transform_output=True):
+        super().__init__(use_col_indices, binary_col_indices, var_p, transform_output)
         args, _, _, values = inspect.getargvalues(inspect.currentframe())
         values.pop("self")
         for arg, val in values.items():

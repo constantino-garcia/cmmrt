@@ -9,6 +9,7 @@ from cmmrt.utils.train.model_selection import stratified_train_test_split
 
 _FLOAT = 'float32'
 
+
 class EarlyStopping:
     """https://github.com/Bjarten/early-stopping-pytorch"""
     """Early stops the training if validation loss doesn't improve after a given patience."""
@@ -55,7 +56,7 @@ class EarlyStopping:
             self.counter = 0
 
     def save_checkpoint(self, val_loss, model):
-        '''Saves model when validation loss decrease.'''
+        """Saves model when validation loss decrease."""
         if self.verbose:
             self.trace_func(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
         torch.save(model.state_dict(), self.path)
@@ -74,10 +75,12 @@ def torch_dataloaders(X, y, batch_size, test_size=0.0, n_strats=6):
         )
     else:
         X_train, y_train = X, y
+
     train_loader = DataLoader(
         TensorDataset(torch.from_numpy(X_train), torch.from_numpy(y_train).view(-1, 1)),
         batch_size=batch_size, shuffle=True
     )
+
     if test_size > 0:
         test_loader = DataLoader(
             TensorDataset(torch.from_numpy(X_test), torch.from_numpy(y_test).view(-1, 1)),

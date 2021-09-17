@@ -6,11 +6,10 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import median_absolute_error
 from sklearn.model_selection import StratifiedKFold
 
+from cmmrt.rt.train_model import create_base_parser
+from cmmrt.rt.train_model import load_data_and_configs
+from cmmrt.rt.train_model import tune_and_fit
 from cmmrt.utils.train.model_selection import stratify_y
-from cmmrt.rt.models import create_base_parser
-from cmmrt.rt.models import load_data_and_configs
-from cmmrt.rt.models import tune_and_fit
-from cmmrt.utils.generic_utils import handle_saving_dir
 
 
 def create_cv_parser(default_storage, default_study, description):
@@ -49,7 +48,7 @@ if __name__ == '__main__':
     results = []
     for fold, (train_index, test_index) in enumerate(cv.split(alvadesc_data.X, strats)):
         # FIXME: should replace namedTuples with recordtype to avoid next line
-        param_search_config = param_search_config._replace(study_prefix= base_study_name + f"-fold-{fold}")
+        param_search_config = param_search_config._replace(study_prefix=base_study_name + f"-fold-{fold}")
         alvadesc_train = alvadesc_data[train_index]
         alvadesc_test = alvadesc_data[test_index]
 
@@ -67,5 +66,3 @@ if __name__ == '__main__':
     print(f"Saving results to {args.csv_output}")
     print(results)
     results.to_csv(args.output, index=False)
-
-

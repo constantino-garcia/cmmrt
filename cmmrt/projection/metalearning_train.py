@@ -58,7 +58,7 @@ def meta_train_gp(dat, scaler, use_feature_extraction=True, mean='zero',
 
     if device == 'cuda':
         model = model.cuda()
-    #mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model.gp)
+    # mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model.gp)
     mll = gpytorch.mlls.LeaveOneOutPseudoLikelihood(likelihood, model.gp)
 
     optimizer = torch.optim.Adam([
@@ -99,7 +99,6 @@ def meta_train_gp(dat, scaler, use_feature_extraction=True, mean='zero',
 def get_representatives(x, y, test_size, n_quantiles=10):
     x_ndim = x.ndim
     y_ndim = y.ndim
-    n = max(1, min(test_size, len(y)) // n_quantiles)
     # First sample() performs stratified sampling, second sample() limits the number
     # of samples to test_size
     # groups = pd.qcut(x.flatten(), n_quantiles)
@@ -136,7 +135,7 @@ def create_parser():
     my_parser.add_argument('-k', '--kernel', type=str, default='spectral_mixture')
     my_parser.add_argument('-r', '--results', help='file prefix for the figures/results',
                            type=str)
-    my_parser.add_argument('-s', '--save_to',  type=str, default='.', help='folder where to save the figures/results')
+    my_parser.add_argument('-s', '--save_to', type=str, default='.', help='folder where to save the figures/results')
     return my_parser
 
 
@@ -154,7 +153,6 @@ def add_timestamp(filename):
 
 
 if __name__ == '__main__':
-    import os
     # Create the parser
     my_parser = create_parser()
     args = my_parser.parse_args()
@@ -178,4 +176,3 @@ if __name__ == '__main__':
     save_to = filename + '.pth'
     print(f"Saving model to {save_to}")
     torch.save(gp, save_to)
-

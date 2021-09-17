@@ -102,7 +102,7 @@ class ProjectionsTasks(Dataset):
             {'rt_exper': 'float32', 'rt_pred': 'float32'}
         )
         self.p_support_range = p_support_range
-        self.scaler=scaler
+        self.scaler = scaler
 
     def __len__(self):
         return len(self.systems)
@@ -126,6 +126,3 @@ class ProjectionsTasks(Dataset):
             x_support = self.scaler.transform(x_support)
             y_support = self.scaler.transform(y_support.reshape(-1, 1)).flatten()
         return x_support, y_support
-
-
-

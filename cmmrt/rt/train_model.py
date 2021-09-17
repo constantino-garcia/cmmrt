@@ -134,7 +134,7 @@ def create_base_parser(default_storage, default_study, description=""):
 
 def create_train_parser(default_storage, default_study):
     parser = create_base_parser(default_storage, default_study, "Train blender and all base-models")
-    parser.add_argument('--save_to',  type=str, default='.', help='folder where to save the preprocessor and regressor models')
+    parser.add_argument('--save_to', type=str, default='.', help='folder where to save the preprocessor and regressor models')
     return parser
 
 
