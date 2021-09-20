@@ -10,13 +10,24 @@ from torch.utils.data import DataLoader
 from cmmrt.projection.data import load_xabier_projections, ProjectionsTasks, Detrender
 from cmmrt.projection.gp import ExactGPModel, FeatureExtractor, DKLProjector, MLPMean
 from cmmrt.utils.generic_utils import handle_saving_dir
+from cmmrt.utils.train.torchutils import get_default_device
 
 warnings.simplefilter("ignore")
+
+# We use Symmetric Mean Absolute Percentage Error (SMAPE) for checking convergence
+def smape(x, y):
+    with torch.no_grad():
+        l1_norm = torch.abs if x.ndim == 0 else lambda x: torch.linalg.norm(x, ord=1)
+        return l1_norm(x - y) / torch.max(
+            torch.tensor(1e-10, requires_grad=False),
+            (l1_norm(x) + l1_norm(y)) / 2.
+        ).item()
 
 
 def meta_train_gp(dat, scaler, use_feature_extraction=True, mean='zero',
                   kernel='spectral_mixture', num_mixtures=4,
-                  p_support_range=(1.0, 1.0), max_epochs=156, device='cuda'):
+                  p_support_range=(1.0, 1.0), max_epochs=156, device=get_default_device(),
+                  tolerance=5e-3):
     tasks = ProjectionsTasks(dat, p_support_range=p_support_range, scaler=scaler)
     tasks_dl = DataLoader(tasks, batch_size=1, shuffle=True)
 
@@ -66,6 +77,17 @@ def meta_train_gp(dat, scaler, use_feature_extraction=True, mean='zero',
     ])
     model.train()
 
+    if max_epochs <= 0:
+        check_convergence = True
+        max_epochs = 100000
+    else:
+        check_convergence = False
+
+    def get_model_params():
+        with torch.no_grad():
+            return [torch.clone(par.squeeze()) for par in list(model.parameters())]
+
+    last_params = get_model_params()
     for epoch in range(1, max_epochs + 1):
         total_loss = 0
         for x, y in tasks_dl:
@@ -91,6 +113,16 @@ def meta_train_gp(dat, scaler, use_feature_extraction=True, mean='zero',
             print('[%d] - Loss: %.3f  noise: %.3f' % (
                 epoch, total_loss.item(), model.gp.likelihood.noise.item()
             ))
+        if check_convergence:
+            new_params = get_model_params()
+            max_smape = torch.max(
+                torch.stack([smape(new_par, last_par) for new_par, last_par in zip(new_params, last_params)])
+            )
+            if max_smape < tolerance:
+                print(f"Model has converged! Stopping training at epoch {epoch}")
+                break
+            last_params = get_model_params()
+
 
     model.eval()
     return model, mll
@@ -128,7 +160,9 @@ def get_representatives(x, y, test_size, n_quantiles=10):
 def create_parser():
     import argparse
     my_parser = argparse.ArgumentParser(description='meta-train gp on projection tasks')
-    my_parser.add_argument('-e', '--epochs', type=int, default=150)
+    my_parser.add_argument('-e', '--epochs', type=int, default=0,
+                           help='Number of epochs for meta-train the gp. Use 0 '
+                                'to denote "until convergence"')
     my_parser.add_argument('-d', '--device', type=str, default='cpu')
     my_parser.add_argument('-m', '--mean', type=str, default='zero')  # mlp_mean or not
     my_parser.add_argument('-f', '--feat', action='store_true')  # feature_extraction or not

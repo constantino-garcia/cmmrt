@@ -95,8 +95,7 @@ def meta_test(gp, mll, system_data, scaler, args, test_size, support=None):
 
 def get_test_filename(args, testsize, system, timestamp):
     filename = get_basename(args)
-    filename += ('-' + str(testsize) + '-' + system)
-    return filename + '-'
+    return filename + '-' + str(testsize) + '-' + system + '-' + timestamp
 
 
 if __name__ == '__main__':
@@ -115,7 +114,7 @@ if __name__ == '__main__':
     systems = ["FEM_long", "LIFE_old", "FEM_orbitrap_plasma", "RIKEN"]
     xabier_cuttoffs = [5, 1, 2, 1]
 
-    timestamp = add_timestamp('')[1:]  # A fixed timestamp for all tests
+    timestamp = add_timestamp('')[1:]  # A fixed timestamp for all tests. [1:] removes the starting "-"
     for exclude_system, cuttoff in zip(systems, xabier_cuttoffs):
         print(f"********** Testing on {exclude_system} **********")
         train_data = dat[dat.system != exclude_system]

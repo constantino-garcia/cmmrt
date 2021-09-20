@@ -1,4 +1,7 @@
 import inspect
+import os
+import shutil
+import tempfile
 
 import gpytorch
 import torch
@@ -12,6 +15,7 @@ from torch import nn
 
 from cmmrt.rt.models.base.PipelineWrapper import RTRegressor
 from cmmrt.utils.train.torchutils import EarlyStopping
+from cmmrt.utils.train.torchutils import get_default_device
 from cmmrt.utils.train.torchutils import torch_dataloaders
 
 
@@ -79,12 +83,23 @@ class _SkDKL(BaseEstimator, RegressorMixin):
     def __init__(self, out_features,
                  kernel='linear', hidden_1=1512, hidden_2=128, dropout=0.5,
                  use_bn_out=False, lr=1e-3, batch_size=512, train_epochs=5000,
-                 test_size=0.1, scheduler_patience=10, early_stopping=25, device='cuda'):
+                 test_size=0.1, scheduler_patience=10, early_stopping=25, device=get_default_device()):
         assert kernel in ['linear', 'rbf', 'mixture'], 'Invalid kernel'
         args, _, _, values = inspect.getargvalues(inspect.currentframe())
         values.pop("self")
         for arg, val in values.items():
             setattr(self, arg, val)
+
+    def _create_checkpoint(self):
+        self._ckpt_folder = tempfile.mkdtemp()
+        return os.path.join(self._ckpt_folder, 'early_stopping.pth')
+
+    def _delete_checkpoint(self):
+        if os.path.exists(self._ckpt_folder):
+            try:
+                shutil.rmtree(self._ckpt_folder)
+            except OSError as e:
+                print(f"Error: {e.filename} - {e.strerror}")
 
     def _init_models(self, num_data, in_features):
         feature_extractor = FeatureExtractor(
@@ -118,7 +133,8 @@ class _SkDKL(BaseEstimator, RegressorMixin):
         self._scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self._optimizer, mode='min',
                                                                      patience=self.scheduler_patience,
                                                                      verbose=False)
-        self._early_stopping = EarlyStopping(patience=self.early_stopping, verbose=False)
+        ckpt = self._create_checkpoint()
+        self._early_stopping = EarlyStopping(patience=self.early_stopping, path=ckpt, verbose=False)
         self._mll = gpytorch.mlls.VariationalELBO(
             self._likelihood,
             self._dkl.regression_model,
@@ -164,6 +180,7 @@ class _SkDKL(BaseEstimator, RegressorMixin):
             if self._early_stopping.early_stop:
                 self._early_stopping.load_checkpoint(self._dkl)
                 break
+        self._delete_checkpoint()
         self._dkl.feature_extractor.eval()
         self._dkl.regression_model.eval()
         self._likelihood.eval()
@@ -179,7 +196,7 @@ class _SkDKL(BaseEstimator, RegressorMixin):
 class SkDKL(RTRegressor):
     def __init__(self, out_features, kernel='linear', hidden_1=1512, hidden_2=128, dropout=0.5, use_bn_out=False,
                  lr=1e-3, batch_size=512, train_epochs=5000, test_size=0.1, scheduler_patience=10, early_stopping=25,
-                 device='cuda', use_col_indices='all', binary_col_indices=None, var_p=0, transform_output=True):
+                 device=get_default_device(), use_col_indices='all', binary_col_indices=None, var_p=0, transform_output=True):
         super().__init__(use_col_indices, binary_col_indices, var_p, transform_output)
         args, _, _, values = inspect.getargvalues(inspect.currentframe())
         values.pop("self")

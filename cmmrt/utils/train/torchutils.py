@@ -1,5 +1,3 @@
-import uuid
-
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
@@ -13,6 +11,7 @@ _FLOAT = 'float32'
 class EarlyStopping:
     """https://github.com/Bjarten/early-stopping-pytorch"""
     """Early stops the training if validation loss doesn't improve after a given patience."""
+
     def __init__(self, patience=7, verbose=False, delta=0, path='es.pth', trace_func=print):
         """
         Args:
@@ -34,8 +33,6 @@ class EarlyStopping:
         self.early_stop = False
         self.val_loss_min = np.Inf
         self.delta = delta
-        if path is None:
-            path = str(uuid.uuid4()) + '.pth'
         self.path = path
         self.trace_func = trace_func
 
@@ -58,14 +55,16 @@ class EarlyStopping:
     def save_checkpoint(self, val_loss, model):
         """Saves model when validation loss decrease."""
         if self.verbose:
-            self.trace_func(f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
+            self.trace_func(
+                f'Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}).  Saving model ...')
         torch.save(model.state_dict(), self.path)
         self.val_loss_min = val_loss
 
     def load_checkpoint(self, model):
         if self.verbose:
             self.trace_func('Loading best model...')
-        model.load_state_dict(torch.load(self.path))
+        device = next(model.parameters()).device
+        model.load_state_dict(torch.load(self.path, map_location=device))
 
 
 def torch_dataloaders(X, y, batch_size, test_size=0.0, n_strats=6):
@@ -103,3 +102,10 @@ def to_torch(x, device):
         return x.to(device)
     else:
         return torch.tensor(x, requires_grad=False, dtype=torch.float32).to(device)
+
+
+def get_default_device():
+    if torch.cuda.is_available():
+        return 'cuda'
+    else:
+        return 'cpu'

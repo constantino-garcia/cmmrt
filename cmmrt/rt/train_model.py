@@ -126,7 +126,7 @@ def create_base_parser(default_storage, default_study, description=""):
     parser.add_argument('--trials', type=int, default=10, help='Number of trials in param search')
     parser.add_argument('--smoke_test', action='store_true',
                         help='Use small model and subsample training data for quick testing. '
-                             'param_search_folds and trials are also overriden')
+                             'param_search_folds and trials are also overridden')
     parser.add_argument('--random_state', type=int, default=42,
                         help='Random state for reproducibility or reusing param search results')
     return parser

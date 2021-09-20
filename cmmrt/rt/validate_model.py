@@ -65,4 +65,4 @@ if __name__ == '__main__':
 
     print(f"Saving results to {args.csv_output}")
     print(results)
-    results.to_csv(args.output, index=False)
+    results.to_csv(args.csv_output, index=False)

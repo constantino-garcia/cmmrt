@@ -29,8 +29,11 @@ install:
 uninstall:
 	$(PYTHON_INTERPRETER) -m pip uninstall cmmrt -y
 
-## Delete all compiled Python files
+## Delete all results/* and compiled Python files
 clean:
+	rm -rf results/rt/*
+	rm -rf results/projections/*
+	rm -rf results/optuna/*
 	find . -type f -name "*.py[co]" -delete
 	find . -type d -name "__pycache__" -delete
 
@@ -63,23 +66,23 @@ endif
 train_predictor:
 	$(PYTHON_INTERPRETER) cmmrt/rt/train_model.py \
 		--storage sqlite:///results/optuna/train.db --save_to saved_models \
-		--smoke_test # FIXME
+		--smoke_test # FIXME: remove this line for complete training
 
 ## Test the performance of all RT predictors using nested cross-validation 
 test_predictor: 
 	$(PYTHON_INTERPRETER) cmmrt/rt/validate_model.py \
-		--storage sqlite:///results/optuna/cv.db --csv_output results/rt \
-		--smoke_test # FIXME
+		--storage sqlite:///results/optuna/cv.db --csv_output results/rt_cv.csv \
+		--smoke_test # FIXME remove this line for complete training
 
 ## Meta-train a GP for projections using all data from PredRet database
 train_projections: 
 	$(PYTHON_INTERPRETER) cmmrt/projection/metalearning_train.py -s saved_models \
-		-e 10 # FIXME
+		-e 10 # FIXME: remove this line for complete training (or set epochs to 0 to train until convergence)
 
 ## Test the performance of meta-training for projections using 4 reference CMs
 test_projections:
 	$(PYTHON_INTERPRETER) cmmrt/projection/metalearning_test.py -s results/projection \
-		-e 10 # FIXME
+		-e 10 # FIXME: remove this line for complete training (or set epochs to 0 to train until convergence)
 #
 
 #################################################################################
