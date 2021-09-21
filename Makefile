@@ -31,9 +31,9 @@ uninstall:
 
 ## Delete all results/* and compiled Python files
 clean:
-	rm -rf results/rt/*
-	rm -rf results/projections/*
-	rm -rf results/optuna/*
+	rm -rf results/rt/* !(".gitkeep")
+	rm -rf results/projection/* !(".gitkeep")
+	rm -rf results/optuna/* !(".gitkeep")
 	find . -type f -name "*.py[co]" -delete
 	find . -type d -name "__pycache__" -delete
 
@@ -71,7 +71,7 @@ train_predictor:
 ## Test the performance of all RT predictors using nested cross-validation 
 test_predictor: 
 	$(PYTHON_INTERPRETER) cmmrt/rt/validate_model.py \
-		--storage sqlite:///results/optuna/cv.db --csv_output results/rt_cv.csv \
+		--storage sqlite:///results/optuna/cv.db --csv_output results/rt/rt_cv.csv \
 		--smoke_test # FIXME remove this line for complete training
 
 ## Meta-train a GP for projections using all data from PredRet database

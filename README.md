@@ -51,7 +51,7 @@ You may run:
     A summary of all tested models is stored in the database `results/optuna/train.db`.
     * `make test_predictor`: Tests the performance of a subset of regressors on
     a subset of the SMRT database using nested cross-validation. A summary of 
-    the results is stored in the CSV `results/rt_cv.csv`. A summary of all tested 
+    the results is stored in the CSV `results/rt/rt_cv.csv`. A summary of all tested 
     models during hyperparameter search is stored in `results/optuna/cv.db` (nested
     within the outer loop).
 * Projection experiments: 

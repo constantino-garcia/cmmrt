@@ -90,5 +90,5 @@ rt_data/
 
 # Residuals from model training
 cmmrt/rt/models/catboost_info/
-cmmrt/rt/models/es.pth
+**/*.pth
  
