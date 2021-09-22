@@ -109,7 +109,7 @@ if __name__ == '__main__':
     if args.testsize == 0:
         args.testsize = np.array([10, 20, 25, 30, 40, 50])
 
-    dat, _, scaler = load_xabier_projections("../../rt_data", remove_non_retained=True)
+    dat, _, scaler = load_xabier_projections("rt_data", remove_non_retained=True)
 
     systems = ["FEM_long", "LIFE_old", "FEM_orbitrap_plasma", "RIKEN"]
     xabier_cuttoffs = [5, 1, 2, 1]

@@ -31,9 +31,9 @@ uninstall:
 
 ## Delete all results/* and compiled Python files
 clean:
-	rm -rf results/rt/* !(".gitkeep")
-	rm -rf results/projection/* !(".gitkeep")
-	rm -rf results/optuna/* !(".gitkeep")
+	rm -rf results/rt/*
+	rm -rf results/projection/*
+	rm -rf results/optuna/* 
 	find . -type f -name "*.py[co]" -delete
 	find . -type d -name "__pycache__" -delete
 

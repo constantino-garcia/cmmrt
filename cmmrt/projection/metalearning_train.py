@@ -194,7 +194,7 @@ if __name__ == '__main__':
     print(args)
 
     filename = add_timestamp(get_basename(args))
-    train_data, systems, scaler = load_xabier_projections("../../rt_data", remove_non_retained=True)
+    train_data, systems, scaler = load_xabier_projections("rt_data", remove_non_retained=True)
 
     num_mixtures = args.num_mixtures if hasattr(args, 'num_mixtures') else 5
     gp, mll = meta_train_gp(

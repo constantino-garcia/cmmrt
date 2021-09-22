@@ -36,7 +36,7 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
 
-    alvadesc_data, param_search_config, blender_config = load_data_and_configs(args, download_directory="../../rt_data")
+    alvadesc_data, param_search_config, blender_config = load_data_and_configs(args, download_directory="rt_data")
 
     cv_folds = 2 if args.smoke_test else args.cv_folds
     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=args.random_state + 500)
