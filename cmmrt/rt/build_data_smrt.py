@@ -3,7 +3,6 @@
 
 
 """
-
 @contents :  This module contains functions to generate fingerprints and descriptors using alvaDesc program from the SMRT database
 @project :  cmmrt (CEU Mass Mediator Retention Time)
 @program :  CEU Mass Mediator
@@ -19,6 +18,7 @@
               Permissions of this strong copyleft license are conditioned on making available complete source code of licensed works and modifications, 
               which include larger works using a licensed work, under the same license. 
               Copyright and license notices must be preserved. Contributors provide an express grant of patent rights.
+@end
 """
 from alvadesccliwrapper.alvadesc import AlvaDesc
 import csv
@@ -38,7 +38,11 @@ def main():
     sdfPath = outputPath + "SDF/"
 
     outputFile = open(outputFileName, 'w', newline='')
-    outputFieldNames =['pubchem','rt','vector_fingerprint']
+    outputFieldNames =['pid','rt']
+    for i in range(1,2215):
+        header_name = "V" + str(i)
+        outputFieldNames.append(header_name)
+    
     writer = csv.DictWriter(outputFile, fieldnames = outputFieldNames)
     writer.writeheader()
     with open(inputFileName) as csvfile:
@@ -47,13 +51,12 @@ def main():
             pc_id = row["pubchem"]
             rt = row["rt"]
             sdffileName = sdfPath + str(pc_id) + ".sdf"
-            vector_fingerprint = build_data.generate_vector_fingerprints_CSV(aDesc,sdffileName)
-            partialDict = {'pubchem' : pc_id, 'rt' : rt, 'vector_fingerprint' : vector_fingerprint}
+            vector_fingerprints = build_data.generate_vector_fingerprints(aDesc,sdffileName)
+            partialDict = {'pid' : pc_id, 'rt' : rt}
+            for i in range(1,2215):
+                header_name = "V" + str(i)
+                partialDict[header_name] = vector_fingerprints[i-1]
             writer.writerow(partialDict)
-
-            
-
-
 
 if __name__ == "__main__":
     main()
