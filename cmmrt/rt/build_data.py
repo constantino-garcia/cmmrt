@@ -29,7 +29,7 @@ def get_file_type(chemicalStructureFile):
 
         Syntax
         ------
-          [str] = get_file_type(chemicalStructureFile)
+          str = get_file_type(chemicalStructureFile)
 
         Parameters
         ----------
@@ -66,7 +66,7 @@ def get_fingerprint(aDesc, chemicalStructureFile, fingerprint_type, fingerprint_
 
         Syntax
         ------
-          [str] = get_fingerprint(aDesc, chemicalStructureFile)
+          str = get_fingerprint(aDesc, chemicalStructureFile)
 
         Parameters
         ----------
@@ -109,7 +109,7 @@ def get_descriptors(aDesc, chemicalStructureFile):
 
         Syntax
         ------
-          [[obj]] = get_descriptors(aDesc, chemicalStructureFile)
+          [obj] = get_descriptors(aDesc, chemicalStructureFile)
 
         Parameters
         ----------
@@ -145,7 +145,7 @@ def generate_vector_fingerprints(aDesc, chemicalStructureFile):
 
         Syntax
         ------
-          [str] = generate_vector_fingerprints(aDesc, chemicalStructureFile, sep)
+          str = generate_vector_fingerprints(aDesc, chemicalStructureFile, sep)
 
         Parameters
         ----------
@@ -204,7 +204,7 @@ def generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep=","):
 
         Syntax
         ------
-          [str] = generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep)
+          str = generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep)
 
         Parameters
         ----------
@@ -243,13 +243,14 @@ def generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep=","):
     return str_fingerprints_csv
 
 
+
 def generate_vector_descriptors_CSV(aDesc, chemicalStructureFile, sep=","):
     """ 
         Generate a string containing the descriptors in csv
 
         Syntax
         ------
-          [str] = generate_vector_descriptors_CSV(aDesc, chemicalStructureFile, sep)
+          str = generate_vector_descriptors_CSV(aDesc, chemicalStructureFile, sep)
 
         Parameters
         ----------
