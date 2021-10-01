@@ -23,6 +23,12 @@
 
 from alvadesccliwrapper.alvadesc import AlvaDesc
 
+NUMBER_FPVALUES = 2214
+NUMBER_DESCRIPTORS = 5666
+def list_of_ints_from_str(big_int_str):
+    ints_list = [int(d) for d in str(big_int_str)]
+    return ints_list
+
 def get_file_type(chemicalStructureFile):
     """ 
         Get the file type from a chemical structure file extension
@@ -46,7 +52,7 @@ def get_file_type(chemicalStructureFile):
 
         Example
         -------
-          >>> get_file_type = UserAccount("'C:/Users/alberto.gildelafuent/Desktop/alberto/resources/SMRT/1.sdf'")
+          >>> get_file_type = get_file_type("'C:/Users/alberto.gildelafuent/Desktop/alberto/resources/SMRT/1.sdf'")
     """
     if(chemicalStructureFile.lower().endswith(".smiles")):
         return "SMILES"
@@ -58,6 +64,34 @@ def get_file_type(chemicalStructureFile):
         return "HYPERCHEM"
     else:
         raise TypeError("File formats recognized are smiles, mol, sdf, mol2 or hin")
+
+def check_fingerprint_type(fingerprintType):
+    """ 
+        Check the type of fingerprints belongs to ECFP, MACCSFP or PFP
+
+        Syntax
+        ------
+          str = check_fingerprint_type(chemicalStructureFile)
+
+        Parameters
+        ----------
+            [in] fingerprintType (str): type of finreprint
+
+        Returns
+        -------
+          None
+
+        Exceptions
+        ----------
+          ValueError:
+            If the fingerprint Type is not ECFP, MACCSFP or PFP
+
+        Example
+        -------
+          >>> check_fingerprint_type("PFP")
+    """
+    if not fingerprintType.lower() in ("ecfp", "maccsfp","pfp"):
+        raise ValueError("Fingerprint Type not recognized. Currently ECFP, MACCSFP and PFP are available.")
 
 
 def get_fingerprint(aDesc, chemicalStructureFile, fingerprint_type, fingerprint_size = 1024):
@@ -71,7 +105,7 @@ def get_fingerprint(aDesc, chemicalStructureFile, fingerprint_type, fingerprint_
         Parameters
         ----------
             [in] aDesc: instance of the aDesc client
-            [in] chemicalStructureFile: Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] chemicalStructureFile: File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
             [in] fingerprint_type: 'ECFP' or 'PFP' or 'MACCSFP'
             [in] fingerprint_size: it's not used for MACCS and by default is 1024
         Returns
@@ -101,8 +135,6 @@ def get_fingerprint(aDesc, chemicalStructureFile, fingerprint_type, fingerprint_
         fingerprint = aDesc.get_output()[0]
         return fingerprint
 
-
-
 def get_descriptors(aDesc, chemicalStructureFile):
     """ 
         Generate all the descriptors from a molecule structure file
@@ -114,7 +146,7 @@ def get_descriptors(aDesc, chemicalStructureFile):
         Parameters
         ----------
             [in] aDesc: instance of the aDesc client
-            [in] chemicalStructureFile: Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] chemicalStructureFile: File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
         Returns
         -------
           [obj] descriptors
@@ -145,13 +177,12 @@ def generate_vector_fingerprints(aDesc, chemicalStructureFile):
 
         Syntax
         ------
-          str = generate_vector_fingerprints(aDesc, chemicalStructureFile, sep)
+          [obj] = generate_vector_fingerprints(aDesc, chemicalStructureFile, sep)
 
         Parameters
         ----------
             [in] aDesc: instance of the aDesc client
-            [in] chemicalStructureFile: Chemical structure represented by smiles, mol, sdf, mol2 or hin
-            [in] sep: separator for the csv String
+            [in] chemicalStructureFile: File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
 
         Returns
         -------
@@ -172,31 +203,70 @@ def generate_vector_fingerprints(aDesc, chemicalStructureFile):
     ECFP_fingerprint = get_fingerprint(aDesc, chemicalStructureFile, 'ECFP')
     MACCSFP_fingerprint = get_fingerprint(aDesc, chemicalStructureFile, 'MACCSFP')
     PFP_fingerprint = get_fingerprint(aDesc, chemicalStructureFile, 'PFP')
-    elements_ECFP = list(ECFP_fingerprint)
-    elements_MACCSFP = list(MACCSFP_fingerprint)
-    elements_PFP = list(PFP_fingerprint)
-    fingerprints = []
-    for element in elements_ECFP:
-        element = int(element)
-        if isinstance(element,int) and element in (0,1):
-            fingerprints.append(element)
-        else:
-            raise RuntimeError("Fingerprint ECFP bad calculated: " + ECFP_fingerprint)
-    for element in elements_MACCSFP:
-        element = int(element)
-        if isinstance(element,int) and element in (0,1):
-            fingerprints.append(element)
-        else:
-            raise RuntimeError("Fingerprint ECFP bad calculated: " + ECFP_fingerprint)
+
+    ECFP_ints_list = list_of_ints_from_str(ECFP_fingerprint)
+    fingerprints = ECFP_ints_list
     
-    for element in elements_PFP:
-        element = int(element)
-        if isinstance(element,int) and element in (0,1):
-            fingerprints.append(element)
-        else:
-            raise RuntimeError("Fingerprint ECFP bad calculated: " + ECFP_fingerprint)
     
+    MACCSFP_ints_list = list_of_ints_from_str(MACCSFP_fingerprint)
+    fingerprints.extend(MACCSFP_ints_list)
+    
+    PFP_fingerprint = list_of_ints_from_str(PFP_fingerprint)
+    fingerprints.extend(PFP_fingerprint)
+
     return fingerprints
+
+def generate_vector_fps_descs(aDesc, chemicalStructureFile, fingerprint_types = ("ECFP", "MACCSFP", "PFP"), descriptors = True):
+    """ 
+        Generate an array containing binary values of the descriptors and fingerprints ECFP, MACCSFP and PFP in in that order. 
+
+        Syntax
+        ------
+          [obj] = generate_vector_fps_descs(aDesc, chemicalStructureFile, sep)
+
+        Parameters
+        ----------
+            [in] aDesc: instance of the aDesc client
+            [in] chemicalStructureFile: File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] fingerprints (tuple of Strings): Fingerprints to be calculated
+            [in] descriptors (Boolean): include ALL descriptors
+
+
+        Returns
+        -------
+          array containing the values of the fingerprints and descriptors specified 
+
+        Exceptions
+        ----------
+          TypeError:
+            If the chemicalStructureFile is not smiles, mol, sdf, mol2 or hin
+
+          ValueError:
+            If the fingerprints is not a tuple object or the elements of the tuple are not recognized (ECFP, MACCSFP, PFP)
+            If descriptors is not a boolean
+
+          RuntimeError:
+            If aDesc gets an error calculating the fingerprints
+
+        Example
+        -------
+          >>> descriptors_and_fingerprints = generate_vector_fps_descs(AlvaDesc('C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'),"C:/Users/alberto.gildelafuent/Desktop/alberto/resources/SMRT/1.sdf")
+    """
+    result_vector = []
+    if isinstance(descriptors,bool) and descriptors:
+        descriptors_list = get_descriptors(aDesc, chemicalStructureFile)
+        result_vector.extend(descriptors_list)
+    if isinstance(fingerprint_types,tuple):
+        for fingerprint_type in fingerprint_types:
+            check_fingerprint_type(fingerprint_type)
+            fingerprint_str = get_fingerprint(aDesc, chemicalStructureFile, fingerprint_type)
+            fingerprint_vector = list_of_ints_from_str(fingerprint_str)
+
+            result_vector.extend(fingerprint_vector)
+    else:
+        raise ValueError("fingerprint_types should be a tuple of elements recognized (ECFP, MACCSFP, PFP)")
+
+    return result_vector
 
 def generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep=","):
     """ 
@@ -209,7 +279,7 @@ def generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep=","):
         Parameters
         ----------
             [in] aDesc: instance of the aDesc client
-            [in] chemicalStructureFile: Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] chemicalStructureFile: File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
             [in] sep: separator for the csv String
 
         Returns
@@ -255,7 +325,7 @@ def generate_vector_descriptors_CSV(aDesc, chemicalStructureFile, sep=","):
         Parameters
         ----------
             [in] aDesc: instance of the aDesc client
-            [in] chemicalStructureFile: Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] chemicalStructureFile: File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
             [in] sep: separator for the csv String
 
         Returns
@@ -369,7 +439,22 @@ def main():
 
 
     print("=================================================================.")
-    print("Test Case 7: CSV Fingerprints of pubchem id1")
+    print("Test Case 7: Descriptors and Fingerprints of pubchem id1")
+    print("=================================================================.")
+
+    expResult = NUMBER_DESCRIPTORS + NUMBER_FPVALUES
+    descriptors_and_fingerprints = generate_vector_fps_descs(aDesc,sdfPath + inputFile, descriptors = True)
+    
+    if expResult == len(descriptors_and_fingerprints):
+        print("Test PASS. Descriptors and Fingerprints of pubchem id1 has been correctly implemented.")
+    else:
+        print("EXP RESULT:", expResult)
+        print("ACTUAL RESULT", descriptors_and_fingerprints)
+
+
+
+    print("=================================================================.")
+    print("Test Case 8: CSV Fingerprints of pubchem id1")
     print("=================================================================.")
     expResult = "0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,0,0,0,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,1,0,0,0,0,0,0,1,1,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,1,0,0,0,0,1,0,1,1,0,0,1,1,1,1,0,1,1,1,1,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,1,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0"
     
@@ -382,8 +467,21 @@ def main():
 
 
     print("=================================================================.")
-    print("Test Case 7: CSV Descriptors of pubchem id1. TEST NOT DONE")
+    print("Test Case 9: CSV Descriptors of pubchem id1. TEST NOT DONE")
     print("=================================================================.")
+
+    print("=================================================================.")
+    print("Test Case 10: Checking fingerpints types")
+    print("=================================================================.")
+    try: 
+        check_fingerprint_type("PFP")
+    except Exception as e:
+        print("Test FAIL. Check the method check_fingerprint_type(fingerprintType). It should accept PFP, ECFP and MACCSFP values" + e)
+    try: 
+        check_fingerprint_type("OPFP")
+        print("Test FAIL. Check the method check_fingerprint_type(fingerprintType). It should not accept any other value than PFP, ECFP and MACCSFP" + e)
+    except Exception as e:
+        print("Test PASS Checking fingerpints types. ")
     
 
 if __name__ == "__main__":

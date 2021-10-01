@@ -3,7 +3,7 @@
 
 
 """
-@contents :  This module contains functions to generate fingerprints and descriptors using alvaDesc program from the SMRT database
+@contents :  This module contains functions to generate fingerprints and descriptors using alvaDesc program from the CMM database
 @project :  cmmrt (CEU Mass Mediator Retention Time)
 @program :  CEU Mass Mediator
 @file :  build_data_smrt.py
@@ -11,7 +11,7 @@
            Constantino García Martínez(constantino.garciama@ceu.es)
            
 
-@version :  0.0.2, 29 September 2021
+@version :  0.0.1, 29 September 2021
 @information : A valid license of AlvaDesc is necessary to generate the descriptors and fingerprints of chemical structures. 
 
 @copyright :  GNU General Public License v3.0
