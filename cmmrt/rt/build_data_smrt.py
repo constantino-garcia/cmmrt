@@ -49,7 +49,7 @@ def main():
         os.remove(outputFileMergedName)
 
     # RUN A MOCK SDF TO OBTAIN DESCRIPTORS HEADERS
-    aDesc.set_input_file(sdfPath + '191.sdf', 'MDL')
+    aDesc.set_input_file(sdfPath + '1.sdf', 'MDL')
     aDesc.calculate_descriptors('ALL')
     listDescriptors = aDesc.get_output_descriptors()
     outputFileDescriptors = open(outputFileDescriptorsName, 'w', newline='')
