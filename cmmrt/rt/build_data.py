@@ -25,6 +25,11 @@ from alvadesccliwrapper.alvadesc import AlvaDesc
 
 NUMBER_FPVALUES = 2214
 NUMBER_DESCRIPTORS = 5666
+#ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
+inputPath = 'C:/Users/alberto.gildelafuent/OneDrive - Fundación Universitaria San Pablo CEU/research/SMRT_in_CMM/'
+outputPath = 'resources/'
+ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
+
 def list_of_ints_from_str(big_int_str):
     ints_list = [int(d) for d in str(big_int_str)]
     return ints_list
@@ -52,7 +57,7 @@ def get_file_type(chemicalStructureFile):
 
         Example
         -------
-          >>> get_file_type = get_file_type("'C:/Users/alberto.gildelafuent/Desktop/alberto/resources/SMRT/1.sdf'")
+          >>> get_file_type = get_file_type(outputPath + "1.sdf")
     """
     if(chemicalStructureFile.lower().endswith(".smiles")):
         return "SMILES"
@@ -123,12 +128,14 @@ def get_fingerprint(aDesc, chemicalStructureFile, fingerprint_type, fingerprint_
 
         Example
         -------
-          >>> pfp_fingerprint = get_fingerprint(AlvaDesc('C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'),"C:/Users/alberto.gildelafuent/Desktop/alberto/resources/SMRT/1.sdf". 'PFP')
+          >>> pfp_fingerprint = get_fingerprint((ALVADESC_LOCATION),outputPath + "1.sdf". 'PFP')
     """
     file_type = get_file_type(chemicalStructureFile)
     if not fingerprint_type in ('ECFP','PFP','MACCSFP'):
         raise TypeError("Fingerprint format not valid. It should be ECFP or PFP or MACCSFP")
     aDesc.set_input_file(chemicalStructureFile, file_type)
+    # TESTING A REGULAR SMILES HARDCODED
+    #aDesc.set_input_SMILES(['CC(=O)OC1=CC=CC=C1C(=O)O'])
     if not aDesc.calculate_fingerprint(fingerprint_type, fingerprint_size):
         raise RuntimeError('AlvaDesc Error ' + aDesc.get_error())
     else:
@@ -161,7 +168,7 @@ def get_descriptors(aDesc, chemicalStructureFile):
 
         Example
         -------
-          >>> descriptors = get_descriptors(AlvaDesc('C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'),"C:/Users/alberto.gildelafuent/Desktop/alberto/resources/SMRT/1.sdf")
+          >>> descriptors = get_descriptors(AlvaDesc(ALVADESC_LOCATION),outputPath + "1.sdf")
     """
     file_type = get_file_type(chemicalStructureFile)
     aDesc.set_input_file(chemicalStructureFile, file_type)
@@ -198,7 +205,7 @@ def generate_vector_fingerprints(aDesc, chemicalStructureFile):
 
         Example
         -------
-          >>> fingerprints_pubchem1 = generate_vector_fingerprints(AlvaDesc('C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'),"C:/Users/alberto.gildelafuent/Desktop/alberto/resources/SMRT/1.sdf")
+          >>> fingerprints_pubchem1 = generate_vector_fingerprints(AlvaDesc(ALVADESC_LOCATION),outputPath + "1.sdf")
     """
     ECFP_fingerprint = get_fingerprint(aDesc, chemicalStructureFile, 'ECFP')
     MACCSFP_fingerprint = get_fingerprint(aDesc, chemicalStructureFile, 'MACCSFP')
@@ -213,7 +220,6 @@ def generate_vector_fingerprints(aDesc, chemicalStructureFile):
     
     PFP_fingerprint = list_of_ints_from_str(PFP_fingerprint)
     fingerprints.extend(PFP_fingerprint)
-
     return fingerprints
 
 def generate_vector_fps_descs(aDesc, chemicalStructureFile, fingerprint_types = ("ECFP", "MACCSFP", "PFP"), descriptors = True):
@@ -250,7 +256,7 @@ def generate_vector_fps_descs(aDesc, chemicalStructureFile, fingerprint_types = 
 
         Example
         -------
-          >>> descriptors_and_fingerprints = generate_vector_fps_descs(AlvaDesc('C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'),"C:/Users/alberto.gildelafuent/Desktop/alberto/resources/SMRT/1.sdf")
+          >>> descriptors_and_fingerprints = generate_vector_fps_descs(AlvaDesc(ALVADESC_LOCATION),outputPath + "1.sdf")
     """
     result_vector = []
     if isinstance(descriptors,bool) and descriptors:
@@ -296,7 +302,7 @@ def generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep=","):
 
         Example
         -------
-          >>> csv_fingerprints_pubchem1 = generate_vector_fingerprints_CSV(AlvaDesc('C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'),"C:/Users/alberto.gildelafuent/Desktop/alberto/resources/SMRT/1.sdf", ",")
+          >>> csv_fingerprints_pubchem1 = generate_vector_fingerprints_CSV(AlvaDesc(ALVADESC_LOCATION),outputPath + "1.sdf", ",")
     """
     fingerprints = generate_vector_fingerprints(aDesc, chemicalStructureFile)
     str_fingerprints_csv = ""
@@ -342,7 +348,7 @@ def generate_vector_descriptors_CSV(aDesc, chemicalStructureFile, sep=","):
 
         Example
         -------
-          >>> csv_descriptors_pubchem1 = generate_vector_descriptors_CSV(AlvaDesc('C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'),"C:/Users/alberto.gildelafuent/Desktop/alberto/resources/SMRT/1.sdf", ",")
+          >>> csv_descriptors_pubchem1 = generate_vector_descriptors_CSV(AlvaDesc(ALVADESC_LOCATION),outputPath + "1.sdf", ",")
     """
     descriptors = get_descriptors(aDesc,chemicalStructureFile)
     str_descriptors_csv = ""
@@ -361,10 +367,8 @@ def generate_vector_descriptors_CSV(aDesc, chemicalStructureFile, sep=","):
 
 def main():
 	# VARIABLES FOR TESTINS. CHANGE THE PROGRAM AND FILE PATHS IF YOU RUN IT LOCALLY
-    aDescPath = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
+    aDescPath = ALVADESC_LOCATION
     aDesc = AlvaDesc(aDescPath)
-    inputPath = 'C:/Users/alberto.gildelafuent/OneDrive - Fundación Universitaria San Pablo CEU/research/SMRT_in_CMM/'
-    outputPath = 'C:/Users/alberto.gildelafuent/Desktop/alberto/resources/SMRT/'
     sdfPath = outputPath + "SDF/"
     inputFile ="1.sdf"
 
@@ -377,7 +381,7 @@ def main():
     if expResult == actualResult:
         print("Test PASS. Format file extension SDF to MDL is correct")
     else:
-        print("Test FAIL. Check the method get_file_type(inputPath)." + " RESULT: " + str(actualResult))
+        print("Test FAIL. Check the method get_file_type(structureFileName)." + " RESULT: " + str(actualResult))
     
     print("=================================================================.")
     print("Test Case 2: ECFP of pubchem id1")
@@ -388,7 +392,7 @@ def main():
     if expResult == actualResult:
         print("Test PASS. ECFP of pubchem id1 correctly calculated")
     else:
-        print("Test FAIL. Check the method get_fingerprint(aDesc, inputPath, 'ECFP')." + " RESULT: " + str(actualResult))
+        print("Test FAIL. Check the method get_fingerprint(aDesc, structureFileName, 'ECFP')." + " RESULT: " + str(actualResult))
     
     print("=================================================================.")
     print("Test Case 3: MACCSFP of pubchem id1")
@@ -399,7 +403,7 @@ def main():
     if expResult == actualResult:
         print("Test PASS. MACCSFP of pubchem id1 correctly calculated")
     else:
-        print("Test FAIL. Check the method get_fingerprint(aDesc, inputPath, 'MACCSFP')." + " RESULT: " + str(actualResult))
+        print("Test FAIL. Check the method get_fingerprint(aDesc, structureFileName, 'MACCSFP')." + " RESULT: " + str(actualResult))
 
     print("=================================================================.")
     print("Test Case 4: PFP of pubchem id1")
@@ -410,7 +414,7 @@ def main():
     if expResult == actualResult:
         print("Test PASS. PFP of pubchem id1 correctly calculated")
     else:
-        print("Test FAIL. Check the method get_fingerprint(aDesc, inputPath, 'PFP')." + " RESULT: " + str(actualResult))
+        print("Test FAIL. Check the method get_fingerprint(aDesc, structureFileName, 'PFP')." + " RESULT: " + str(actualResult))
 
     
     print("=================================================================.")
@@ -421,7 +425,7 @@ def main():
     if expResult_len == len(actualResult):
         print("Test PASS. number of descriptors of pubchem id1 correctly calculated")
     else:
-        print("Test FAIL. Check the method get_descriptors(aDesc, inputPath)." + " RESULT: " + str(actualResult))
+        print("Test FAIL. Check the method get_descriptors(aDesc, structureFileName)." + " RESULT: " + str(actualResult))
 
     
 
