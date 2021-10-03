@@ -25,17 +25,24 @@ import csv
 import os
 import build_data
 
+#Constants
+ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
+#ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
+
+# VARIABLES OF AlvaDesc Software
+NUMBER_FPVALUES=2214
+NUMBER_DESCRIPTORS = 5666
+
 def main():
     
-    #Constants
-    NUMBER_FPVALUES=2214
-    # VARIABLES OF AlvaDesc Software
-    aDescPath = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
-    aDesc = AlvaDesc(aDescPath)
+    
+    
+    
+
+    aDesc = AlvaDesc(ALVADESC_LOCATION)
     # INPUT PATH CONTAINS PC IDS, RTs and INCHI of SMRT Database
-    #inputPath = 'C:/Users/alberto.gildelafuent/OneDrive - Fundación Universitaria San Pablo CEU/research/SMRT_in_CMM/'
     inputPath = 'resources/'
-    inputFileName = inputPath + "CMM_ID_SMILES.csv"
+    inputFileName = inputPath + "CMM_ID_test.csv"
     # IT WILL TAKE SDFs FROM PC IDS to create a CSV file containing the vector with fingerprints (ECFP, MACCSFP and PFP) of each SMRT compound
     outputPath = 'resources/'
     outputFileDescriptorsName = outputPath + "vector_fingerprints/CMM_descriptors.csv"
@@ -47,25 +54,27 @@ def main():
         os.remove(outputFileFingerprintsName)
     if os.path.isfile(outputFileMergedName):
         os.remove(outputFileMergedName)
+    # UNCOMMENT ONLY IF WE WANT DESCRIPTORS + VECTORS
     '''
     # RUN A MOCK SDF TO OBTAIN DESCRIPTORS HEADERS
     aDesc.set_input_file(sdfPath + '1.sdf', 'MDL')
     aDesc.calculate_descriptors('ALL')
     listDescriptors = aDesc.get_output_descriptors()
     outputFileDescriptors = open(outputFileDescriptorsName, 'w', newline='')
-    descriptorFieldNames =['pid','CMM_ID']
+    descriptorFieldNames =['pid','CMM_id']
     descriptorFieldNames.extend(listDescriptors)
     writerDescriptors = csv.DictWriter(outputFileDescriptors, fieldnames = descriptorFieldNames)
     writerDescriptors.writeheader()
     '''
     # WRITER FOR FINGERPRINTS
     outputFileFingerprints = open(outputFileFingerprintsName, 'w', newline='')
-    FPFieldNames =['pid','CMM_ID']
+    FPFieldNames =['pid','CMM_id']
     for i in range(0,NUMBER_FPVALUES):
         header_name = "V" + str(i+1)
         FPFieldNames.append(header_name)
     writerFP = csv.DictWriter(outputFileFingerprints, fieldnames = FPFieldNames)
     writerFP.writeheader()
+    # UNCOMMENT ONLY IF WE WANT DESCRIPTORS + VECTORS
     '''
     # WRITER FOR MERGED
     mergedFieldNames = descriptorFieldNames[:]
@@ -81,24 +90,28 @@ def main():
             pc_id = row["pid"]
             CMM_id = row["CMM_id"]
             SMILES = row["SMILES"]
-
-            partialDictMerged = {'pid' : pc_id, 'CMM_ID' : CMM_id}
+            # UNCOMMENT ONLY IF WE WANT DESCRIPTORS + VECTORS
+            '''
+            partialDictMerged = {'pid' : pc_id, 'CMM_id' : CMM_id}
             descriptors = build_data.get_descriptors(aDesc,sdffileName)
             partialDictDescriptors = {'pid' : pc_id, 'rt' : rt}
             for i in range(0,len(listDescriptors)):
                 descriptor_header = listDescriptors[i]
                 partialDictDescriptors[descriptor_header] = descriptors[i]
             writerDescriptors.writerow(partialDictDescriptors)
+            '''
 
 
-            vector_fingerprints = build_data.generate_vector_fingerprints(aDesc,sdffileName)
-            partialDictFP = {'pid' : pc_id, 'rt' : rt}
+            vector_fingerprints = build_data.generate_vector_fingerprints(aDesc, smiles = SMILES)
+            partialDictFP = {'pid' : pc_id, 'CMM_id' : CMM_id}
             for i in range(0,NUMBER_FPVALUES):
                 header_name = "V" + str(i+1)
                 partialDictFP[header_name] = vector_fingerprints[i]
-                partialDictDescriptors[header_name] = vector_fingerprints[i]
+                # UNCOMMENT ONLY IF WE WANT DESCRIPTORS + VECTORS
+                #partialDictDescriptors[header_name] = vector_fingerprints[i]
             writerFP.writerow(partialDictFP)
-            writerMerged.writerow(partialDictDescriptors)
+            # UNCOMMENT ONLY IF WE WANT DESCRIPTORS + VECTORS
+            #writerMerged.writerow(partialDictDescriptors)
 
 
 if __name__ == "__main__":

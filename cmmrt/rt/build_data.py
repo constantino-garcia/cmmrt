@@ -26,9 +26,9 @@ from alvadesccliwrapper.alvadesc import AlvaDesc
 NUMBER_FPVALUES = 2214
 NUMBER_DESCRIPTORS = 5666
 #ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
-inputPath = 'C:/Users/alberto.gildelafuent/OneDrive - Fundación Universitaria San Pablo CEU/research/SMRT_in_CMM/'
-outputPath = 'resources/'
 ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
+outputPath = 'resources/'
+
 
 def list_of_ints_from_str(big_int_str):
     ints_list = [int(d) for d in str(big_int_str)]
@@ -99,20 +99,60 @@ def check_fingerprint_type(fingerprintType):
         raise ValueError("Fingerprint Type not recognized. Currently ECFP, MACCSFP and PFP are available.")
 
 
+def get_fingerprint_from_SMILES(aDesc, SMILES, fingerprint_type, fingerprint_size = 1024):
+    """ 
+        Generate the the specified type Fingerprint from a SMILES structure
+
+        Syntax
+        ------
+          str = get_fingerprint_from_SMILES(aDesc, SMILES)
+
+        Parameters
+        ----------
+            [in] aDesc (AlvaDesc instance): instance of the aDesc client
+            [in] SMILES (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] fingerprint_type: 'ECFP' or 'PFP' or 'MACCSFP'
+            [in] fingerprint_size: it's not used for MACCS and by default is 1024
+        Returns
+        -------
+          str fingerprint
+
+        Exceptions
+        ----------
+          TypeError:
+
+          RuntimeError:
+            If aDesc gets an error calculating the fingerprints
+
+        Example
+        -------
+          >>> pfp_fingerprint = get_fingerprint_from_SMILES((ALVADESC_LOCATION),"CCCC"", 'PFP')
+    """
+    if not fingerprint_type in ('ECFP','PFP','MACCSFP'):
+        raise TypeError("Fingerprint format not valid. It should be ECFP or PFP or MACCSFP")
+    aDesc.set_input_SMILES(SMILES)
+    # TESTING A REGULAR SMILES HARDCODED
+    #aDesc.set_input_SMILES(['CC(=O)OC1=CC=CC=C1C(=O)O'])
+    if not aDesc.calculate_fingerprint(fingerprint_type, fingerprint_size):
+        raise RuntimeError('AlvaDesc Error ' + aDesc.get_error())
+    else:
+        fingerprint = aDesc.get_output()[0]
+        return fingerprint
+
 def get_fingerprint(aDesc, chemicalStructureFile, fingerprint_type, fingerprint_size = 1024):
     """ 
         Generate the the specified type Fingerprint from a molecule structure file
 
         Syntax
         ------
-          str = get_fingerprint(aDesc, chemicalStructureFile)
+          str = get_fingerprint(aDesc, chemicalStructureFile, fingerprint_type, fingerprint_size)
 
         Parameters
         ----------
-            [in] aDesc: instance of the aDesc client
-            [in] chemicalStructureFile: File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
-            [in] fingerprint_type: 'ECFP' or 'PFP' or 'MACCSFP'
-            [in] fingerprint_size: it's not used for MACCS and by default is 1024
+            [in] aDesc (AlvaDesc instance: instance of the aDesc client
+            [in] chemicalStructureFile (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] fingerprint_type (str): 'ECFP' or 'PFP' or 'MACCSFP'
+            [in] fingerprint_size (int): it's not used for MACCS and by default is 1024
         Returns
         -------
           str fingerprint
@@ -128,7 +168,7 @@ def get_fingerprint(aDesc, chemicalStructureFile, fingerprint_type, fingerprint_
 
         Example
         -------
-          >>> pfp_fingerprint = get_fingerprint((ALVADESC_LOCATION),outputPath + "1.sdf". 'PFP')
+          >>> pfp_fingerprint = get_fingerprint((ALVADESC_LOCATION),outputPath + "1.sdf", 'PFP')
     """
     file_type = get_file_type(chemicalStructureFile)
     if not fingerprint_type in ('ECFP','PFP','MACCSFP'):
@@ -152,8 +192,8 @@ def get_descriptors(aDesc, chemicalStructureFile):
 
         Parameters
         ----------
-            [in] aDesc: instance of the aDesc client
-            [in] chemicalStructureFile: File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] aDesc (AlvaDesc instance): instance of the aDesc client
+            [in] chemicalStructureFile (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
         Returns
         -------
           [obj] descriptors
@@ -178,18 +218,19 @@ def get_descriptors(aDesc, chemicalStructureFile):
         descriptors = aDesc.get_output()[0]
         return descriptors
 
-def generate_vector_fingerprints(aDesc, chemicalStructureFile):
+def generate_vector_fingerprints(aDesc, chemicalStructureFile = None, smiles = None):
     """ 
         Generate an array containing binary values of the fingerprints ECFP, MACCSFP and PFP in in that order. 
 
         Syntax
         ------
-          [obj] = generate_vector_fingerprints(aDesc, chemicalStructureFile, sep)
+          [obj] = generate_vector_fingerprints(aDesc, chemicalStructureFile)
 
         Parameters
         ----------
-            [in] aDesc: instance of the aDesc client
-            [in] chemicalStructureFile: File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] aDesc (AlvaDesc instance): instance of the aDesc client
+            [in] chemicalStructureFile (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin.
+            [in] SMILES (str): structure represented by SMILES instead of a file. If it is specified, chemicalStructureFile is ignored
 
         Returns
         -------
@@ -207,9 +248,14 @@ def generate_vector_fingerprints(aDesc, chemicalStructureFile):
         -------
           >>> fingerprints_pubchem1 = generate_vector_fingerprints(AlvaDesc(ALVADESC_LOCATION),outputPath + "1.sdf")
     """
-    ECFP_fingerprint = get_fingerprint(aDesc, chemicalStructureFile, 'ECFP')
-    MACCSFP_fingerprint = get_fingerprint(aDesc, chemicalStructureFile, 'MACCSFP')
-    PFP_fingerprint = get_fingerprint(aDesc, chemicalStructureFile, 'PFP')
+    if smiles == None:
+        ECFP_fingerprint = get_fingerprint(aDesc, chemicalStructureFile, 'ECFP')
+        MACCSFP_fingerprint = get_fingerprint(aDesc, chemicalStructureFile, 'MACCSFP')
+        PFP_fingerprint = get_fingerprint(aDesc, chemicalStructureFile, 'PFP')
+    else: 
+        ECFP_fingerprint = get_fingerprint_from_SMILES(aDesc, smiles, 'ECFP')
+        MACCSFP_fingerprint = get_fingerprint_from_SMILES(aDesc, smiles, 'MACCSFP')
+        PFP_fingerprint = get_fingerprint_from_SMILES(aDesc, smiles, 'PFP')
 
     ECFP_ints_list = list_of_ints_from_str(ECFP_fingerprint)
     fingerprints = ECFP_ints_list
@@ -228,12 +274,12 @@ def generate_vector_fps_descs(aDesc, chemicalStructureFile, fingerprint_types = 
 
         Syntax
         ------
-          [obj] = generate_vector_fps_descs(aDesc, chemicalStructureFile, sep)
+          [obj] = generate_vector_fps_descs(aDesc, chemicalStructureFile, fingerprint_types, descriptors)
 
         Parameters
         ----------
-            [in] aDesc: instance of the aDesc client
-            [in] chemicalStructureFile: File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] aDesc (AlvaDesc instance): instance of the aDesc client
+            [in] chemicalStructureFile (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
             [in] fingerprints (tuple of Strings): Fingerprints to be calculated
             [in] descriptors (Boolean): include ALL descriptors
 
@@ -284,9 +330,9 @@ def generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep=","):
 
         Parameters
         ----------
-            [in] aDesc: instance of the aDesc client
-            [in] chemicalStructureFile: File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
-            [in] sep: separator for the csv String
+            [in] aDesc (AlvaDesc instance): instance of the aDesc client
+            [in] chemicalStructureFile (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] sep (str): separator for the csv String
 
         Returns
         -------
@@ -330,9 +376,9 @@ def generate_vector_descriptors_CSV(aDesc, chemicalStructureFile, sep=","):
 
         Parameters
         ----------
-            [in] aDesc: instance of the aDesc client
-            [in] chemicalStructureFile: File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
-            [in] sep: separator for the csv String
+            [in] aDesc (AlvaDesc instance): instance of the aDesc client
+            [in] chemicalStructureFile (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] sep (str): separator for the csv String
 
         Returns
         -------

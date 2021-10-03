@@ -25,13 +25,16 @@ import csv
 import os
 import build_data
 
+ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
+#ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
+
 def main():
     
     #Constants
     NUMBER_FPVALUES=2214
     # VARIABLES OF AlvaDesc Software
-    aDescPath = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
-    aDesc = AlvaDesc(aDescPath)
+
+    aDesc = AlvaDesc(ALVADESC_LOCATION)
     # INPUT PATH CONTAINS PC IDS, RTs and INCHI of SMRT Database
     inputPath = 'C:/Users/alberto.gildelafuent/OneDrive - Fundación Universitaria San Pablo CEU/research/SMRT_in_CMM/'
     inputFileName = inputPath + "SMRT_dataset_test.csv"
