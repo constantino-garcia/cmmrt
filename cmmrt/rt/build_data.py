@@ -134,7 +134,7 @@ def get_fingerprint_from_SMILES(aDesc, SMILES, fingerprint_type, fingerprint_siz
     # TESTING A REGULAR SMILES HARDCODED
     #aDesc.set_input_SMILES(['CC(=O)OC1=CC=CC=C1C(=O)O'])
     if not aDesc.calculate_fingerprint(fingerprint_type, fingerprint_size):
-        raise RuntimeError('AlvaDesc Error ' + aDesc.get_error())
+        raise RuntimeError('AlvaDesc Error ' + aDesc.get_error() + SMILES)
     else:
         fingerprint = aDesc.get_output()[0]
         return fingerprint
