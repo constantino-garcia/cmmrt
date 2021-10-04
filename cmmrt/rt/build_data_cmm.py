@@ -26,8 +26,8 @@ import os
 import build_data
 
 #Constants
-ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
-#ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
+#ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
+ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
 
 # VARIABLES OF AlvaDesc Software
 NUMBER_FPVALUES=2214
@@ -90,31 +90,27 @@ def main():
             pc_id = row["pid"]
             CMM_id = row["CMM_id"]
             SMILES = row["SMILES"]
-            try:
+            # UNCOMMENT ONLY IF WE WANT DESCRIPTORS + VECTORS
+            '''
+            partialDictMerged = {'pid' : pc_id, 'CMM_id' : CMM_id}
+            descriptors = build_data.get_descriptors(aDesc,sdffileName)
+            partialDictDescriptors = {'pid' : pc_id, 'rt' : rt}
+            for i in range(0,len(listDescriptors)):
+                descriptor_header = listDescriptors[i]
+                partialDictDescriptors[descriptor_header] = descriptors[i]
+            writerDescriptors.writerow(partialDictDescriptors)
+            '''
+            print(SMILES) 
+            vector_fingerprints = build_data.generate_vector_fingerprints(aDesc, smiles = SMILES)
+            partialDictFP = {'pid' : pc_id, 'CMM_id' : CMM_id}
+            for i in range(0,NUMBER_FPVALUES):
+                header_name = "V" + str(i+1)
+                partialDictFP[header_name] = vector_fingerprints[i]
                 # UNCOMMENT ONLY IF WE WANT DESCRIPTORS + VECTORS
-                '''
-                partialDictMerged = {'pid' : pc_id, 'CMM_id' : CMM_id}
-                descriptors = build_data.get_descriptors(aDesc,sdffileName)
-                partialDictDescriptors = {'pid' : pc_id, 'rt' : rt}
-                for i in range(0,len(listDescriptors)):
-                    descriptor_header = listDescriptors[i]
-                    partialDictDescriptors[descriptor_header] = descriptors[i]
-                writerDescriptors.writerow(partialDictDescriptors)
-                '''
-             
-                vector_fingerprints = build_data.generate_vector_fingerprints(aDesc, smiles = SMILES)
-                partialDictFP = {'pid' : pc_id, 'CMM_id' : CMM_id}
-                for i in range(0,NUMBER_FPVALUES):
-                    header_name = "V" + str(i+1)
-                    partialDictFP[header_name] = vector_fingerprints[i]
-                    # UNCOMMENT ONLY IF WE WANT DESCRIPTORS + VECTORS
-                    #partialDictDescriptors[header_name] = vector_fingerprints[i]
-                writerFP.writerow(partialDictFP)
-                # UNCOMMENT ONLY IF WE WANT DESCRIPTORS + VECTORS
-                #writerMerged.writerow(partialDictDescriptors)
-
-            except Exception as e:
-                print(e)
+                #partialDictDescriptors[header_name] = vector_fingerprints[i]
+            writerFP.writerow(partialDictFP)
+            # UNCOMMENT ONLY IF WE WANT DESCRIPTORS + VECTORS
+            #writerMerged.writerow(partialDictDescriptors)
 
 
 if __name__ == "__main__":

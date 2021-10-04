@@ -25,8 +25,8 @@ import csv
 import os
 import build_data
 
-ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
-#ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
+#ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
+ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
 
 def main():
     
