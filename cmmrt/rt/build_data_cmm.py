@@ -26,8 +26,8 @@ import os
 import build_data
 
 #Constants
-ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
-#ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
+#ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
+ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
 
 # VARIABLES OF AlvaDesc Software
 NUMBER_FPVALUES=2214
@@ -101,7 +101,7 @@ def main():
                     partialDictDescriptors[descriptor_header] = descriptors[i]
                 writerDescriptors.writerow(partialDictDescriptors)
                 '''
-             
+                print(CMM_id, SMILES, sep = "\t")
                 vector_fingerprints = build_data.generate_vector_fingerprints(aDesc, smiles = SMILES)
                 partialDictFP = {'pid' : pc_id, 'CMM_id' : CMM_id}
                 for i in range(0,NUMBER_FPVALUES):
@@ -115,6 +115,7 @@ def main():
 
             except Exception as e:
                 print(e)
+                print(SMILES)
 
 
 if __name__ == "__main__":
