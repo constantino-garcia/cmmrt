@@ -42,7 +42,7 @@ def main():
     aDesc = AlvaDesc(ALVADESC_LOCATION)
     # INPUT PATH CONTAINS PC IDS, RTs and INCHI of SMRT Database
     inputPath = 'resources/'
-    inputFileName = inputPath + "CMM_ID_test.csv"
+    inputFileName = inputPath + "CMM_ID_SMILES.csv"
     # IT WILL TAKE SDFs FROM PC IDS to create a CSV file containing the vector with fingerprints (ECFP, MACCSFP and PFP) of each SMRT compound
     outputPath = 'resources/'
     outputFileDescriptorsName = outputPath + "vector_fingerprints/CMM_descriptors.csv"
