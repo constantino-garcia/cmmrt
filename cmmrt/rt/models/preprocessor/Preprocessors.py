@@ -17,7 +17,7 @@ from cmmrt.rt.data import is_non_retained
 
 class Preprocessor(BaseEstimator, TransformerMixin):
     def __init__(self, storage, study_prefix, desc_cols, fgp_cols, n_trials, search_cv,
-                 p=0.9, cor_th=0.9, k='all'):
+                 p=0.99, cor_th=0.9, k='all'):
         self.storage = storage
         self.study_prefix = study_prefix
         self.desc_cols = desc_cols
@@ -81,6 +81,39 @@ class Preprocessor(BaseEstimator, TransformerMixin):
 
     def transformed_fingerprints(self, X):
         return X[:, self.transformed_fgp_cols]
+
+    def _predict_clf_proba(self, X, y=None):
+        X_fgp = X[:, self.fgp_cols]
+        X_fgp_proc = self._fgp_vs.transform(X_fgp)
+        return self._clf.predict_proba(X_fgp_proc).astype('float32')
+
+
+class FgpPreprocessor(BaseEstimator, TransformerMixin):
+    def __init__(self, storage, study_prefix, fgp_cols, n_trials, search_cv, p=0.9):
+        self.storage = storage
+        self.study_prefix = study_prefix
+        self.fgp_cols = fgp_cols
+        self.p = p
+        self.n_trials = n_trials
+        self.search_cv = search_cv
+
+    def _init_hidden_models(self):
+        self._fgp_vs = VarianceThreshold(threshold=self.p * (1 - self.p))
+        self._clf = create_clf()
+
+    def fit(self, X, y=None):
+        self._init_hidden_models()
+        X_fgp = X[:, self.fgp_cols]
+        X_fgp_proc = self._fgp_vs.fit_transform(X_fgp)
+        self._clf = train_clf(self._clf, X_fgp_proc, is_non_retained(y), self.n_trials, self.search_cv,
+                              storage=self.storage, study_prefix=self.study_prefix)
+        return self
+
+    def transform(self, X, y=None):
+        X_fgp = X[:, self.fgp_cols]
+        X_fgp_proc = self._fgp_vs.transform(X_fgp)
+        prob_predictions = self._clf.predict_proba(X_fgp_proc)[:, 1:].astype('float32')
+        return np.concatenate([X_fgp, prob_predictions], axis=1)
 
     def _predict_clf_proba(self, X, y=None):
         X_fgp = X[:, self.fgp_cols]
