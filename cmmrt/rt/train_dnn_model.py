@@ -10,6 +10,7 @@ from cmmrt.rt.models.nn.SkDnn import SkDnn
 from cmmrt.rt.models.preprocessor.Preprocessors import FgpPreprocessor
 from cmmrt.utils.generic_utils import handle_saving_dir
 from cmmrt.utils.train.param_search import param_search
+from cmmrt.utils.train.param_search import create_study
 
 ParamSearchConfig = namedtuple('ParamSearchConfig', ['storage', 'study_prefix', 'param_search_cv', 'n_trials'])
 
@@ -35,15 +36,18 @@ def tune_and_fit(alvadesc_data, param_search_config):
     dnn = create_dnn(fgp_cols=all_cols, binary_cols=all_cols[:-1])
 
     print("Param search")
-    dnn = param_search(
+    study = create_study("dnn", param_search_config.study_prefix, param_search_config.storage)
+    best_params = param_search(
         dnn,
         X_train, alvadesc_data.y,
         cv=param_search_config.param_search_cv,
-        study=(param_search_config.storage, param_search_config.study_prefix),
+        study=study,
         n_trials=param_search_config.n_trials,
         keep_going=False
     )
     print("Training")
+    dnn = create_dnn(fgp_cols=all_cols, binary_cols=all_cols[:-1])
+    dnn.set_params(**best_params)
     dnn.fit(X_train, alvadesc_data.y)
 
     return preprocessor, dnn
