@@ -1,3 +1,19 @@
+"""Meta-train GP on the PredRet dataset
+
+This script allows the user to meta-train a GP model on the PredRet dataset as done in the paper
+<<Domingo-Almenara, Xavier, et al. "The METLIN small molecule dataset for machine learning-based retention
+time prediction." Nature communications 10.1 (2019): 1-9>>
+(that is, predicted RTs are taken from this paper).
+
+Meta-training is done by using the GP model to create projections between the predicted RTs and the experimental
+RTs measured using different chromatographic methods. The result of meta-training is a GP with tuned hyperparameters
+that can be interpreted as a sensible prior to be used when creating a projection model from a small amount of data.
+
+This script permits the user to specify command line options. Use
+$ python metalearning_train.py --help
+to see the options.
+"""
+
 import os
 import warnings
 
@@ -5,6 +21,7 @@ import gpytorch
 import pandas as pd
 import torch
 from gpytorch.kernels import SpectralMixtureKernel, RBFKernel, PolynomialKernel, LinearKernel, ScaleKernel
+from sklearn.cluster import KMeans
 from torch.utils.data import DataLoader
 
 from cmmrt.projection.data import load_xabier_projections, ProjectionsTasks, Detrender
@@ -16,6 +33,7 @@ warnings.simplefilter("ignore")
 
 # We use Symmetric Mean Absolute Percentage Error (SMAPE) for checking convergence
 def smape(x, y):
+    """Symmetric Mean Absolute Percentage Error (SMAPE)"""
     with torch.no_grad():
         l1_norm = torch.abs if x.ndim == 0 else lambda x: torch.linalg.norm(x, ord=1)
         return l1_norm(x - y) / torch.max(
@@ -28,6 +46,24 @@ def meta_train_gp(dat, scaler, use_feature_extraction=True, mean='zero',
                   kernel='spectral_mixture', num_mixtures=4,
                   p_support_range=(1.0, 1.0), max_epochs=156, device=get_default_device(),
                   tolerance=5e-3):
+    """Meta-train a GP model using retention times from different chromatographic methods.
+    :param dat: pandas dataframe with information of the retention times predicted by a machine
+        learning model (column 'rt_pred') and the retention times measured ('rt_exper') in different
+        chromatography systems ('system').
+    :param scaler: scikit-learn transformer or None. If provided, the scaler is applied to the retention times.
+    :param use_feature_extraction: boolean indicating if a feature extraction neural network should be used
+    before the GP model.
+    :param mean: Mean to be used in the GP model. Should be one of 'zero', 'mlp', 'linear'.
+    :param kernel: Kernel to be used in the GP model. Should be one of 'spectral_mixture', 'rbf', 'poly', 'rbf+linear', 'rbf+poly'.
+    :param num_mixtures: number of spectral mixture components to be used in the spectral mixture kernel.
+    :param p_support_range: proportion of the systems' data used for creating a projection task specified
+        as a tuple (min_p, max_p).
+    :param max_epochs: maximum number of epochs for meta-training the GP model.
+    :param device: torch device to be used ('cuda' or 'cpu').
+    :param tolerance: tolerance for convergence of the meta-training.
+    :return: meta-trained GP model and marginal log-likelihood at the end of meta-training.
+
+    """
     tasks = ProjectionsTasks(dat, p_support_range=p_support_range, scaler=scaler)
     tasks_dl = DataLoader(tasks, batch_size=1, shuffle=True)
 
@@ -129,12 +165,12 @@ def meta_train_gp(dat, scaler, use_feature_extraction=True, mean='zero',
 
 
 def get_representatives(x, y, test_size, n_quantiles=10):
+    """Get representative samples of the (x, y) dataset by selecting points that 'cover' the x range."""
     x_ndim = x.ndim
     y_ndim = y.ndim
     # First sample() performs stratified sampling, second sample() limits the number
     # of samples to test_size
     # groups = pd.qcut(x.flatten(), n_quantiles)
-    from sklearn.cluster import KMeans
     kmeans = KMeans(n_quantiles).fit(x.reshape(-1, 1))
     groups = kmeans.labels_
 
@@ -158,6 +194,7 @@ def get_representatives(x, y, test_size, n_quantiles=10):
 
 
 def create_parser():
+    """Command line parser for the meta-training and meta-testing scripts."""
     import argparse
     my_parser = argparse.ArgumentParser(description='meta-train gp on projection tasks')
     my_parser.add_argument('-e', '--epochs', type=int, default=0,
@@ -174,6 +211,7 @@ def create_parser():
 
 
 def get_basename(args):
+    """Use command line arguments to create a basename for the results"""
     filename = (args.mean + '_fe') if args.feat else args.mean
     filename += ('_' + args.kernel)
     filename = os.path.join(args.save_to, filename)
@@ -181,6 +219,7 @@ def get_basename(args):
 
 
 def add_timestamp(filename):
+    """Add timestamp to filename"""
     import time
     timestamp = str(int(round(time.time() * 1000)))
     return filename + f"-{timestamp}"

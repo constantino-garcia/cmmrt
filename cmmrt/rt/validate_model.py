@@ -1,3 +1,27 @@
+"""Validate regressors on SMRT dataset
+
+This script allows the user to train and validate a set of different regressors on the SMRT dataset
+using cross-validation. Since training includes Bayesian optimization of hyperparameters,
+nested cross-validation is actually used.
+
+The models include:
+* Gaussian process with deep kernels (deep kernel learning)
+* Deep Neural network trained with warm restarts and Stochastic Weight averaging (SWA).
+* Gradient Boosting Machines:
+    * XGBoost
+    * LightGBM
+    * A set of CatBoost models assigning different weights to retained and non-retained molecules
+* An ensemble of the previous models based on a Random Forest meta-regressors.
+
+With the exception of the CatBoost models, the models are trained using three types of
+features: 1) fingerprints, 2) descriptors and 3) fingerprints + descriptors. The
+fingerprints and descriptors were obtained using the Alvadesc software.
+
+This script permits the user to specify command line options. Use
+$ python validate_model.py --help
+to see the options.
+"""
+
 import os
 import tempfile
 
@@ -13,6 +37,7 @@ from cmmrt.utils.train.model_selection import stratify_y
 
 
 def create_cv_parser(default_storage, default_study, description):
+    """Command line parser for validating all models"""
     parser = create_base_parser(default_storage=default_storage, default_study=default_study, description=description)
     parser.add_argument("--cv_folds", type=int, default=5, help="Number of folds to be used for CV")
     parser.add_argument("--csv_output", type=str, default=os.path.join(tempfile.gettempdir(), "cv_results.csv"),
@@ -21,6 +46,7 @@ def create_cv_parser(default_storage, default_study, description):
 
 
 def evaluate_all_estimators(blender, X_test, y_test, metrics, fold_number):
+    """Evaluate all estimators in blender on the test set"""
     iteration_results = []
     for estimator_name, estimator in blender._fitted_estimators + [('Blender', blender)]:
         estimator_results = {k: metric(y_test, estimator.predict(X_test)) for k, metric in metrics.items()}

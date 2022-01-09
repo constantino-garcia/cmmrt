@@ -112,8 +112,9 @@ class _SkDnn(BaseEstimator, RegressorMixin):
 
 class SkDnn(RTRegressor):
     def __init__(self, hidden_1=1512, hidden_2=128, dropout_1=0.5, dropout_2=0.1, activation='gelu', lr=3e-4, T0=30,
-                 annealing_rounds=2, swa_epochs=20, batch_size=64, device=get_default_device(), use_col_indices='all',
-                 binary_col_indices=None, var_p=0, transform_output=False):
+                 annealing_rounds=2, swa_epochs=20, batch_size=64, device=get_default_device(),
+                 use_col_indices='all',
+                 binary_col_indices=None, var_p=0, transform_output=True):
         super().__init__(use_col_indices, binary_col_indices, var_p, transform_output)
         args, _, _, values = inspect.getargvalues(inspect.currentframe())
         values.pop("self")

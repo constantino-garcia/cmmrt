@@ -1,3 +1,25 @@
+"""Train regressors on SMRT dataset
+
+This script allows the user to train a set of different regressors on the SMRT dataset.
+Training includes Bayesian optimization of hyperparameters by means of a Tree of Parzen estimators.
+The models include:
+* Gaussian process with deep kernels (deep kernel learning)
+* Deep Neural network trained with warm restarts and Stochastic Weight averaging (SWA).
+* Gradient Boosting Machines:
+    * XGBoost
+    * LightGBM
+    * A set of CatBoost models assigning different weights to retained and non-retained molecules
+* An ensemble of the previous models based on a Random Forest meta-regressors.
+
+With the exception of the CatBoost models, the models are trained using three types of
+features: 1) fingerprints, 2) descriptors and 3) fingerprints + descriptors. The
+fingerprints and descriptors were obtained using the Alvadesc software.
+
+This script permits the user to specify command line options. Use
+$ python train_model.py --help
+to see the options.
+"""
+
 import argparse
 import pickle
 from collections import namedtuple
@@ -22,6 +44,7 @@ ParamSearchConfig = namedtuple('ParamSearchConfig', ['storage', 'study_prefix', 
 
 
 def create_smoke_blender(desc_cols, fgp_cols, binary_cols, blender_config):
+    """Create a Blender object with a small number of base models for testing purposes"""
     estimators = [
         ('desc_dkl', SkDKL(2, use_col_indices=desc_cols, binary_col_indices=binary_cols)),
         ('fgp_mlp',
@@ -33,6 +56,7 @@ def create_smoke_blender(desc_cols, fgp_cols, binary_cols, blender_config):
 
 
 def create_blender(desc_cols, fgp_cols, binary_cols, blender_config):
+    """Create a blender model with the specified configuration"""
     estimators = [
         # Deep Kernel Learning
         ('full_dkl', SkDKL(2, use_col_indices='all', binary_col_indices=binary_cols)),
@@ -62,6 +86,7 @@ def create_blender(desc_cols, fgp_cols, binary_cols, blender_config):
 
 
 def tune_and_fit(alvadesc_data, param_search_config, blender_config, smoke_test=False):
+    """Perform hyperparameter search for all models and fit final models using the best configuration."""
     print(f"Starting tune_and_fit with data with dim ({alvadesc_data.X.shape[0]},{alvadesc_data.X.shape[1]})")
     print("Preprocessing...")
     preprocessor = Preprocessor(
@@ -104,6 +129,7 @@ def tune_and_fit(alvadesc_data, param_search_config, blender_config, smoke_test=
 
 
 def create_base_parser(default_storage, default_study, description=""):
+    """Command line parser for both training and validating all models"""
     parser = argparse.ArgumentParser(description=description)
 
     def restricted_float(x):
@@ -133,12 +159,15 @@ def create_base_parser(default_storage, default_study, description=""):
 
 
 def create_train_parser(default_storage, default_study):
+    """Command line parser for training all models"""
     parser = create_base_parser(default_storage, default_study, "Train blender and all base-models")
     parser.add_argument('--save_to', type=str, default='.', help='folder where to save the preprocessor and regressor models')
     return parser
 
 
 def load_data_and_configs(args, download_directory):
+    """Create configuration objects for parameter search and the Blender based on command line arguments, and
+    load the SMRT dataset featurized with Alvadesc's fingerprints and descriptors."""
     alvadesc_data = AlvadescDataset(download_directory)
     if args.smoke_test:
         idx = np.random.choice(np.arange(alvadesc_data.X.shape[0]), 5000, replace=False)

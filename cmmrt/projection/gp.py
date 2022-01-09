@@ -1,3 +1,4 @@
+"""Classes for projecting retention times between chromatograhic methods."""
 import gpytorch
 import torch
 import torch.nn as nn
@@ -5,6 +6,7 @@ import torch.nn.functional as F
 
 
 class MLPMean(gpytorch.means.Mean):
+    """Learnable mean function for GP regression based on a multilayer perceptron."""
     def __init__(self, dim):
         super(MLPMean, self).__init__()
         self.mlp = nn.Sequential(
@@ -19,7 +21,12 @@ class MLPMean(gpytorch.means.Mean):
 
 
 class DKLProjector(gpytorch.Module):
+    """Combines a feature extractor and a GP to create a GP with a deep kernel"""
     def __init__(self, feature_extractor, gp):
+        """
+        :param feature_extractor: torch.nn.Module implementing a feature extractor. May be None (no feature extractor is used).
+        :param gp: A GP to be used on top of the feature extractor.
+        """
         super().__init__()
         self.feature_extractor = feature_extractor
         self.gp = gp
@@ -43,6 +50,7 @@ class DKLProjector(gpytorch.Module):
 
 
 class ExactGPModel(gpytorch.models.ExactGP):
+    """GP model with exact posterior calculation."""
     def __init__(self, mean, kernel, likelihood, train_x, train_y):
         super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
         self.mean_module = mean
@@ -55,6 +63,7 @@ class ExactGPModel(gpytorch.models.ExactGP):
 
 
 class FeatureExtractor(nn.Module):
+    """Feature extractor to be used in DKLProjector."""
     def __init__(self, hidden_dim):
         super().__init__()
         self.hidden_dim = hidden_dim

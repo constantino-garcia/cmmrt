@@ -91,4 +91,5 @@ rt_data/
 # Residuals from model training
 cmmrt/rt/models/catboost_info/
 **/*.pth
- 
+results/projection/
+

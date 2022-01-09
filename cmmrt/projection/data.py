@@ -1,3 +1,4 @@
+"""Functions to load and process data related to projections between chromatographic methods."""
 import os
 
 import numpy as np
@@ -10,6 +11,7 @@ from torch.utils.data import Dataset
 
 
 class Detrender(BaseEstimator, TransformerMixin):
+    """Transformer for the y variable that works by subtracting a linear fit on the train data."""
     def fit(self, X, y):
         self._lm = LinearRegression().fit(X, y)
         return self
@@ -29,9 +31,10 @@ class Detrender(BaseEstimator, TransformerMixin):
 
 
 class RTTransformer(BaseEstimator, TransformerMixin):
+    """Transformer that combines a logarithmic transformation log(1 + x) with a RobustScaler."""
     def fit(self, X, y=None):
         self._scaler = RobustScaler()
-        self._scaler.fit(np.log(X))
+        self._scaler.fit(np.log(1 + X))
         return self
 
     def transform(self, X):
@@ -62,6 +65,11 @@ class RTTransformer(BaseEstimator, TransformerMixin):
 
 
 def load_xabier_projections(download_directory="rt_data", min_points=0, remove_non_retained=False):
+    """Downloads PredRet dataset used in the paper
+    <<Domingo-Almenara, Xavier, et al. "The METLIN small molecule dataset for machine learning-based retention
+    time prediction." Nature communications 10.1 (2019): 1-9>>
+    for assessing the performance of projection methods.
+    """
     filename = os.path.join(download_directory, "projections_database.csv")
     url = "https://drive.google.com/u/0/uc?id=1WwySS_FxcyjBUnqTAMfOpy2H7IQf4Kmc&export=download"
     if not os.path.exists(filename):
@@ -89,7 +97,20 @@ def load_xabier_projections(download_directory="rt_data", min_points=0, remove_n
 
 
 class ProjectionsTasks(Dataset):
+    """Meta-learning dataset where each task consists of projecting retention times from the SMRT dataset
+    to the retention times as measured in a different chromatography system."""
     def __init__(self, projections_dat, p_support_range, min_n=20, scaler=None):
+        """
+        :param projections_dat: pandas dataframe with information of the retention times predicted by a machine
+        learning model (column 'rt_pred') and the retention times measured ('rt_exper') in different
+        chromatography systems ('system').
+        :param p_support_range: proportion of the systems' data used for creating a projection task specified
+        as a tuple (min_p, max_p). That is, to create a projection tasks for a given system, a random proportion
+        p from the range (min_p, max_p) is drawn. Then, a random subset of the systems' data is selected to create
+        a projection task.
+        :param min_n: minimum number of samples for a system to be considered for creating a projection task.
+        :param scaler: Scikit-learn transformer or None. If provided, the scaler is applied to the retention times.
+        """
         assert len(p_support_range) == 2, 'p_support_range should be a duple (min_p, max_p)'
         assert 0 <= p_support_range[0] <= 1, 'invalid p_support_range'
         assert 0 <= p_support_range[1] <= 1, 'invalid p_support_range'
