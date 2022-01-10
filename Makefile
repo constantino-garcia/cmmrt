@@ -83,7 +83,6 @@ train_projections:
 test_projections:
 	$(PYTHON_INTERPRETER) cmmrt/projection/metalearning_test.py -s results/projection \
 		-e 10 # FIXME: remove this line for complete training (or set epochs to 0 to train until convergence)
-#
 
 #################################################################################
 # Self Documenting Commands                                                     #

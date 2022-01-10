@@ -1,3 +1,29 @@
+"""Meta-test GP on the PredRet dataset
+
+This script allows the user to meta-test a GP model on the PredRet dataset as done in the paper
+<<Domingo-Almenara, Xavier, et al. "The METLIN small molecule dataset for machine learning-based retention
+time prediction." Nature communications 10.1 (2019): 1-9>>
+(that is, predicted RTs are taken from this paper).
+
+Meta-training is done by using the GP model to create projections between the predicted RTs and the experimental
+RTs measured using different chromatographic methods. The result of meta-training is a GP with tuned hyperparameters
+that can be interpreted as a sensible prior to be used when creating a projection model from a small amount of data.
+
+The performance of the model is evaluated by
+1. selecting a system.
+2. Meta-training the GP on the PredRet dataset but excluding the system selected in step 1.
+3. Performance is evaluated by:
+    3.1. Selecting a small amount of points from the system selected in step 1.
+    3.2. Using the meta-trained GP as prior, train it on the points from step 3.1.
+    3.3. Evaluate projection error on the points not used in steps 3.1-3.2.
+
+The results from the evaluation are saved in a csv file. PNG figures of the projections are also generated.
+
+This script permits the user to specify command line options. Use
+$ python metalearning_test.py --help
+to see the options.
+"""
+
 import warnings
 
 import matplotlib.pyplot as plt
@@ -16,6 +42,7 @@ warnings.simplefilter("ignore")
 
 
 def plot_projection(proj_data, support_data):
+    """Plot the projections learnt using the support data."""
     plt.fill_between(
         proj_data.x.values,
         proj_data.lb.values,
@@ -29,7 +56,21 @@ def plot_projection(proj_data, support_data):
     plt.plot(support_data.x.values, support_data.y.values, "rx", mew=2)
 
 
-def meta_test(gp, mll, system_data, scaler, args, test_size, support=None):
+def meta_test(gp, mll, system_data, scaler, args, n_annotated_samples, support=None):
+    """Evaluates the performance of the meta-trained GP on a given system.
+    
+    :param gp: meta-trained DKLProjector to be used as prior in the projection tasks.
+    :param mll: pytorch.mlls.LeaveOneOutPseudoLikelihood representing the loss function used for meta-training.
+    :param system_data: pandas dataframe containing the data for a specific system to be used for testing.
+    :param scaler: object of class RTTransformer used to scale the RTs.
+    :param args: command line arguments.
+    :param n_annotated_samples: Number of points to use from the system for creating the projection function. These
+    points represent molecules whose identity is known (and hence, whose predicted RTs are known).
+    :param support: tuple (x, y) representing a set of points to be used for creating the projection function. If
+    specified, test_size is ignored.
+    :return: projections (including confidence intervals), data used for creating the projection function, relative errors,
+    loss value.
+    """
     x = system_data.rt_pred.values.astype('float32')
     y = system_data.rt_exper.values.astype('float32')
     x = scaler.transform(x.reshape(-1, 1)).flatten()
@@ -39,7 +80,7 @@ def meta_test(gp, mll, system_data, scaler, args, test_size, support=None):
     y = y[sort_idx]
     # Note that x and y are swapped on stratified_train_test_split so that stratification is done based on x
     if support is None:
-        x_support, y_support = get_representatives(x, y, test_size=test_size, n_quantiles=10)
+        x_support, y_support = get_representatives(x, y, test_size=n_annotated_samples, n_quantiles=10)
         x_support = x_support.reshape(-1, 1)
     else:
         print('Using Xabier support')
@@ -93,21 +134,23 @@ def meta_test(gp, mll, system_data, scaler, args, test_size, support=None):
     return all_data, support_data, relative_errors, loss
 
 
-def get_test_filename(args, testsize, system, timestamp):
+def get_test_filename(args, n_annotated_samples, system, timestamp):
+    """Get a filename to be used to store testing results based on the command line arguments and the system name."""
     filename = get_basename(args)
-    return filename + '-' + str(testsize) + '-' + system + '-' + timestamp
+    return filename + '-' + str(n_annotated_samples) + '-' + system + '-' + timestamp
 
 
 if __name__ == '__main__':
     # Create the parser
     my_parser = create_parser()
-    my_parser.add_argument('-t', '--testsize', type=int, default=0)
+    my_parser.add_argument('-t', '--n_annotated', type=int, default=0,
+                           help='Number of samples to use for creating the projection function.')
     args = my_parser.parse_args()
     handle_saving_dir(args.save_to)
     print(args)
 
-    if args.testsize == 0:
-        args.testsize = np.array([10, 20, 25, 30, 40, 50])
+    if args.n_annotated == 0:
+        args.n_annotated = np.array([10, 20, 25, 30, 40, 50])
 
     dat, _, scaler = load_xabier_projections("rt_data", remove_non_retained=True)
 
@@ -132,16 +175,16 @@ if __name__ == '__main__':
             device=args.device
         )
 
-        for testsize in args.testsize:
-            results_filename = get_test_filename(args, testsize, exclude_system, timestamp)
+        for n_annotated_samples in args.n_annotated:
+            results_filename = get_test_filename(args, n_annotated_samples, exclude_system, timestamp)
             support = None
-            # if testsize == 50:
+            # if n_annotated_samples == 50:
             #     support = system_data[system_data.support]
             #     assert support.shape[0] == 50, 'Wait a minute, something is wrong!'
             #     support = (support.rt_pred.values.reshape(-1, 1), support.rt_exper.values)
 
             all_data, support_data, relative_errors, loss = meta_test(
-                gp, mll, system_data, scaler, args, testsize, support=support
+                gp, mll, system_data, scaler, args, n_annotated_samples, support=support
             )
 
             all_data.to_csv(results_filename + '.csv')
