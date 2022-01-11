@@ -7,6 +7,12 @@ import numpy as np
 import pandas as pd
 
 
+def load_rdkit_fingerprints():
+    maccsfp = pd.read_csv("rt_data/rdkit/SMRT_MACCSFP_rdkit.csv")
+    secfp = pd.read_csv("rt_data/rdkit/SMRT_SECFP_rdkit.csv")
+    maccsfp.apply(lambda row: [c for c in row[1]], axis=1)
+
+
 class AlvadescDataset:
     def __init__(self, download_directory="rt_data"):
         filename = os.path.join(download_directory, "alvadesc.pklz")
