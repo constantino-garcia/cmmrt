@@ -13,5 +13,5 @@ def stratify_y(y, n_strats=6):
     return codes
 
 
-def stratified_train_test_split(X, y, *, test_size, n_strats=6):
-    return train_test_split(X, y, test_size=test_size, stratify=stratify_y(y, n_strats))
+def stratified_train_test_split(X, y, *, test_size, n_strats=6, random_state=None):
+    return train_test_split(X, y, test_size=test_size, stratify=stratify_y(y, n_strats), random_state=random_state)

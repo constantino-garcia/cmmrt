@@ -7,10 +7,58 @@ import numpy as np
 import pandas as pd
 
 
-def load_rdkit_fingerprints():
-    maccsfp = pd.read_csv("rt_data/rdkit/SMRT_MACCSFP_rdkit.csv")
-    secfp = pd.read_csv("rt_data/rdkit/SMRT_SECFP_rdkit.csv")
-    maccsfp.apply(lambda row: [c for c in row[1]], axis=1)
+def load_rdkit_fingerprints(download_directory="rt_data", split_as_np=True):
+    # TODO: remove hardconded names and make the prototype consistent with other loading funcs
+    fingerprints = []
+    for filename in ["rt_data/rdkit/SMRT_MACCSFP_rdkit.csv", "rt_data/rdkit/SMRT_SECFP_rdkit.csv"]:
+         data = pd.read_csv(filename)
+         fgp_df = data.apply(lambda row: pd.Series([c for c in row[1]]), axis=1)
+         fgp_df['pubchem'] = data['pubchem']
+         fingerprints.append(fgp_df)
+    merged = pd.merge(*fingerprints, on="pubchem")
+    alvadesc_smrt = pd.read_csv("rt_data/alvadesc/SMRT_ECFP.csv", usecols=["pubchem", "rt"])
+    merged_with_rt = merged.merge(alvadesc_smrt, on="pubchem")
+    assert alvadesc_smrt.shape[0] == merged_with_rt.shape[0], "merging failed"
+    assert merged.shape[0] == merged_with_rt.shape[0], "merging failed"
+    if split_as_np:
+        y = merged_with_rt['rt'].values.astype('float32')
+        X = merged_with_rt.drop(columns=['pubchem', 'rt'], axis=1).to_numpy().astype('float32')
+        return X, y
+    else:
+        return merged_with_rt
+
+
+class RDkitDataset:
+    "TODO:make this class and AlvadescDataset inherit from the same class"
+    def __init__(self, download_directory="rt_data"):
+        filename = os.path.join(download_directory, "rdkit.pklz")
+        if not os.path.exists(filename):
+            common_cols = ['pubchem', 'rt']
+            self.X, self.y = load_rdkit_fingerprints(download_directory=download_directory, split_as_np=True)
+            self.desc_cols = None
+            self.fgp_cols = np.arange(self.X.shape[1], dtype='int')
+
+            print('saving')
+            with bz2.BZ2File(filename, "wb") as f:
+                pickle.dump([self.X, self.y, self.desc_cols, self.fgp_cols], f)
+        else:
+            with bz2.BZ2File(filename, "rb") as f:
+                self.X, self.y, self.desc_cols, self.fgp_cols = pickle.load(f)
+
+    @property
+    def fingerprints(self):
+        return self.X[:, self.fgp_cols]
+
+    @property
+    def descriptors(self):
+        # FIXME when making this class inherit from other, return descritpors and fingerprints only if desc_cols is not none
+        return None
+
+    def __getitem__(self, item):
+        self_copy = copy.deepcopy(self)
+        self_copy.X = self_copy.X[item, :]
+        self_copy.y = self_copy.y[item]
+        return self_copy
 
 
 class AlvadescDataset:
