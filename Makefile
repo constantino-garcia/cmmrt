@@ -89,6 +89,12 @@ train_dnn:
 		--storage sqlite:///results/optuna/dnn.db --save_to saved_models \
 		--smoke_test # FIXME: remove this line for complete training
 
+test_dnn: 
+	$(PYTHON_INTERPRETER) cmmrt/rt/validate_dnn_model.py \
+		--storage sqlite:///results/optuna/cv.db --csv_output results/rt/rt_cv.csv \
+		--trials 25
+
+#
 
 #################################################################################
 # Self Documenting Commands                                                     #
