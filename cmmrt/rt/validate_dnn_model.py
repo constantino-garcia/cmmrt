@@ -41,6 +41,7 @@ if __name__ == '__main__':
         predictions = dnn.predict(preprocessor.transform(test_data.X))
         performance_dict = {k: metric(test_data.y, predictions) for k, metric in metrics.items()}
         performance_dict.update({'fold': fold})
+        print(performance_dict)
         results.append(performance_dict)
 
     results = pd.DataFrame(results)
