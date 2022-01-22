@@ -91,7 +91,7 @@ train_dnn:
 
 test_dnn: 
 	$(PYTHON_INTERPRETER) cmmrt/rt/validate_dnn_model.py \
-		--storage sqlite:///results/optuna/cv.db --csv_output results/rt/rt_cv.csv \
+		--storage sqlite:///results/optuna/rdkit_cv.db --csv_output results/rt/rdkit_rt_cv.csv \
 		--trials 25
 
 #
