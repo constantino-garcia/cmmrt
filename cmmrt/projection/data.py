@@ -147,3 +147,9 @@ class ProjectionsTasks(Dataset):
             x_support = self.scaler.transform(x_support)
             y_support = self.scaler.transform(y_support.reshape(-1, 1)).flatten()
         return x_support, y_support
+
+
+# TODO: download if not exist
+def load_predret(download_directory="rt_data"):
+    """PredRet Database"""
+    return pd.read_csv("rt_data/predret.csv").drop("Unnamed: 0", axis=1)
