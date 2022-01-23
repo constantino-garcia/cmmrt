@@ -23,7 +23,9 @@ This script permits the user to specify command line options. Use
 $ python metalearning_test.py --help
 to see the options.
 """
-
+import os
+import dill as pickle
+# import pickle
 import warnings
 
 import matplotlib.pyplot as plt
@@ -56,7 +58,7 @@ def plot_projection(proj_data, support_data):
     plt.plot(support_data.x.values, support_data.y.values, "rx", mew=2)
 
 
-def meta_test(gp, mll, system_data, scaler, args, n_annotated_samples, support=None):
+def meta_test(gp, mll, system_data, scaler, args, n_annotated_samples, support=None, use_detrender=False):
     """Evaluates the performance of the meta-trained GP on a given system.
     
     :param gp: meta-trained DKLProjector to be used as prior in the projection tasks.
@@ -68,6 +70,7 @@ def meta_test(gp, mll, system_data, scaler, args, n_annotated_samples, support=N
     points represent molecules whose identity is known (and hence, whose predicted RTs are known).
     :param support: tuple (x, y) representing a set of points to be used for creating the projection function. If
     specified, test_size is ignored.
+    :param use_detrender: boolean indicating if a detrender should be used to center y.
     :return: projections (including confidence intervals), data used for creating the projection function, relative errors,
     loss value.
     """
@@ -88,9 +91,10 @@ def meta_test(gp, mll, system_data, scaler, args, n_annotated_samples, support=N
         x_support = scaler.transform(x_support)
         y_support = scaler.transform(y_support.reshape(-1, 1)).flatten()
 
-    detrender = Detrender()
-    y_support = detrender.fit_transform(x_support, y_support)
-    y = detrender.transform(y)
+    if use_detrender:
+        detrender = Detrender()
+        y_support = detrender.fit_transform(x_support, y_support)
+        y = detrender.transform(y)
 
     # print(gp.gp.likelihood.noise_covar.noise.item())
     # print(gp.gp.covar_module)
@@ -103,10 +107,11 @@ def meta_test(gp, mll, system_data, scaler, args, n_annotated_samples, support=N
         loss = -mll(preds, to_torch(y, args.device))
     mean, var = preds.mean.cpu().numpy(), preds.variance.cpu().numpy()
 
-    y = detrender.inverse_transform(y)
-    y_support = detrender.inverse_transform(y_support)
-    mean = detrender.inverse_transform(mean)
-    var = detrender.inverse_var_transform(var)
+    if use_detrender:
+        y = detrender.inverse_transform(y)
+        y_support = detrender.inverse_transform(y_support)
+        mean = detrender.inverse_transform(mean)
+        var = detrender.inverse_var_transform(var)
 
     x = scaler.inverse_transform(x.reshape(-1, 1)).flatten()
     y = scaler.inverse_transform(y.reshape(-1, 1)).flatten()
@@ -174,6 +179,10 @@ if __name__ == '__main__':
             scaler=scaler,
             device=args.device
         )
+        with open(os.path.join(args.save_to, f'gp_model_excluding_{exclude_system}.pkl'), 'wb') as f:
+            pickle.dump([gp, scaler], f)
+        # FIXME
+        continue
 
         for n_annotated_samples in args.n_annotated:
             results_filename = get_test_filename(args, n_annotated_samples, exclude_system, timestamp)

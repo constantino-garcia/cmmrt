@@ -45,7 +45,7 @@ def smape(x, y):
 def meta_train_gp(dat, scaler, use_feature_extraction=True, mean='zero',
                   kernel='spectral_mixture', num_mixtures=4,
                   p_support_range=(1.0, 1.0), max_epochs=156, device=get_default_device(),
-                  tolerance=5e-3):
+                  tolerance=5e-3, use_detrender=True):
     """Meta-train a GP model using retention times from different chromatographic methods.
     :param dat: pandas dataframe with information of the retention times predicted by a machine
         learning model (column 'rt_pred') and the retention times measured ('rt_exper') in different
@@ -61,6 +61,7 @@ def meta_train_gp(dat, scaler, use_feature_extraction=True, mean='zero',
     :param max_epochs: maximum number of epochs for meta-training the GP model.
     :param device: torch device to be used ('cuda' or 'cpu').
     :param tolerance: tolerance for convergence of the meta-training.
+    :param use_detrender: boolean indicating if a detrender should be used to center y.
     :return: meta-trained GP model and marginal log-likelihood at the end of meta-training.
 
     """
@@ -68,11 +69,13 @@ def meta_train_gp(dat, scaler, use_feature_extraction=True, mean='zero',
     tasks_dl = DataLoader(tasks, batch_size=1, shuffle=True)
 
     dim = 2 if use_feature_extraction else 1
+    print(mean)
     if mean == 'zero':
         mean = gpytorch.means.ZeroMean()
     elif mean == 'linear':
         mean = gpytorch.means.LinearMean(input_size=dim)
     elif mean == 'mlp':
+        print("Using MLPMean")
         mean = MLPMean(dim)
     else:
         raise ValueError('Invalid mean')
@@ -88,7 +91,11 @@ def meta_train_gp(dat, scaler, use_feature_extraction=True, mean='zero',
     elif kernel == 'rbf':
         kernel = ScaleKernel(RBFKernel(ard_num_dims=dim))
     elif kernel == 'rbf+linear':
-        kernel = ScaleKernel(RBFKernel(ard_num_dims=dim)) + ScaleKernel(LinearKernel(num_dimensions=dim))
+        # lengthscale_prior = gpytorch.priors.GammaPrior(10., 10.)
+        # k1 = ScaleKernel(RBFKernel(ard_num_dims=dim, lengthscale_prior=lengthscale_prior))
+        # k1.base_kernel.lenghtscale = lengthscale_prior.mean
+        k1 = ScaleKernel(RBFKernel(ard_num_dims=dim))
+        kernel = k1 + ScaleKernel(LinearKernel(num_dimensions=dim))
     elif kernel == 'rbf+poly':
         kernel = ScaleKernel(RBFKernel(ard_num_dims=dim)) + ScaleKernel(PolynomialKernel(power=3))
     elif kernel == "poly":
@@ -108,20 +115,32 @@ def meta_train_gp(dat, scaler, use_feature_extraction=True, mean='zero',
     # mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model.gp)
     mll = gpytorch.mlls.LeaveOneOutPseudoLikelihood(likelihood, model.gp)
 
+    unregularized = []
+    regularized = []
+    for name, p in model.named_parameters():
+        if 'mlp' in name and 'weight' in name:
+            print("Adding weight decay to {}".format(name))
+            regularized += [p]
+        else:
+            unregularized += [p]
     optimizer = torch.optim.Adam([
-        {'params': model.parameters(), 'lr': 0.001}
+        {'params': unregularized, 'lr': 0.001},
+        {'params': regularized, 'weight_decay': 4e-3, 'lr': 0.001},
     ])
     model.train()
 
     if max_epochs <= 0:
         check_convergence = True
-        max_epochs = 100000
+        max_epochs = 2000
     else:
         check_convergence = False
 
     def get_model_params():
         with torch.no_grad():
-            return [torch.clone(par.squeeze()) for par in list(model.parameters())]
+            return [
+                torch.clone(par.squeeze()) for name, par in list(model.named_parameters()) if
+                'mlp' not in name
+            ]
 
     last_params = get_model_params()
     for epoch in range(1, max_epochs + 1):
@@ -130,8 +149,9 @@ def meta_train_gp(dat, scaler, use_feature_extraction=True, mean='zero',
             x = x.squeeze(0)
             y = y.squeeze(0)
 
-            detrender = Detrender()
-            y = detrender.fit_transform(x, y)
+            if use_detrender:
+                detrender = Detrender()
+                y = detrender.fit_transform(x, y)
 
             if device == 'cuda':
                 x = x.cuda()

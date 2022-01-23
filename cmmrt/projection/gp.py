@@ -9,10 +9,13 @@ class MLPMean(gpytorch.means.Mean):
     """Learnable mean function for GP regression based on a multilayer perceptron."""
     def __init__(self, dim):
         super(MLPMean, self).__init__()
+        HD = 128
         self.mlp = nn.Sequential(
-            nn.Linear(dim, 128),
-            nn.ReLU(),
-            nn.Linear(128, 1)
+            nn.Linear(dim, HD),
+            nn.LeakyReLU(),
+            nn.Linear(HD, HD),
+            nn.LeakyReLU(),
+            nn.Linear(HD, 1)
         )
 
     def forward(self, x):
