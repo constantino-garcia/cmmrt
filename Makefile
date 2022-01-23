@@ -83,6 +83,13 @@ train_projections:
 test_projections:
 	$(PYTHON_INTERPRETER) cmmrt/projection/metalearning_test.py -s results/projection 
 
+train_dnn:
+	$(PYTHON_INTERPRETER) cmmrt/rt/train_dnn_model.py \
+		--storage sqlite:///results/optuna/dnn.db --save_to saved_models \
+		--smoke_test # FIXME: remove this line for complete training
+
+
+
 #################################################################################
 # Self Documenting Commands                                                     #
 #################################################################################
