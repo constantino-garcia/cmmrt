@@ -56,6 +56,7 @@ class Preprocessor(BaseEstimator, TransformerMixin):
         X_desc_proc = self._desc_pipeline.transform(X_desc)
         X_fgp_proc = self._fgp_vs.transform(X_fgp)
         prob_predictions = self._clf.predict_proba(X_fgp_proc)[:, 1:].astype('float32')
+        # Return X_fgp instead of X_fgp_proc since each regressor may have its own selection of variables
         new_X = np.concatenate([X_desc_proc, X_fgp, prob_predictions], axis=1)
         # Annotate which columns are related to descriptors an fingerprints after transformation. Also, annotate which
         # columns can be considered binary
@@ -89,13 +90,14 @@ class Preprocessor(BaseEstimator, TransformerMixin):
 
 
 class FgpPreprocessor(BaseEstimator, TransformerMixin):
-    def __init__(self, storage, study_prefix, fgp_cols, n_trials, search_cv, p=0.9):
+    def __init__(self, storage, study_prefix, fgp_cols, n_trials, search_cv, p=0.9, non_retained_cutoff=300):
         self.storage = storage
         self.study_prefix = study_prefix
         self.fgp_cols = fgp_cols
         self.p = p
         self.n_trials = n_trials
         self.search_cv = search_cv
+        self.non_retained_cutoff = non_retained_cutoff
 
     def _init_hidden_models(self):
         self._fgp_vs = VarianceThreshold(threshold=self.p * (1 - self.p))
@@ -105,17 +107,29 @@ class FgpPreprocessor(BaseEstimator, TransformerMixin):
         self._init_hidden_models()
         X_fgp = X[:, self.fgp_cols]
         X_fgp_proc = self._fgp_vs.fit_transform(X_fgp)
-        self._clf = train_clf(self._clf, X_fgp_proc, is_non_retained(y), self.n_trials, self.search_cv,
-                              storage=self.storage, study_prefix=self.study_prefix)
+        labels = is_non_retained(y, self.non_retained_cutoff)
+        if len(np.unique(labels)) > 1:
+            self._clf = train_clf(self._clf, X_fgp_proc, labels, self.n_trials, self.search_cv,
+                                  storage=self.storage, study_prefix=self.study_prefix)
+        else:
+            # Skip training if there is only one class
+            self._clf = None
         return self
 
     def transform(self, X, y=None):
         X_fgp = X[:, self.fgp_cols]
         X_fgp_proc = self._fgp_vs.transform(X_fgp)
-        prob_predictions = self._clf.predict_proba(X_fgp_proc)[:, 1:].astype('float32')
-        return np.concatenate([X_fgp, prob_predictions], axis=1)
+        # Return X_fgp instead of X_fgp_proc since each regressor may have its own selection of variables
+        if self._clf is not None:
+            prob_predictions = self._clf.predict_proba(X_fgp_proc)[:, 1:].astype('float32')
+            return np.concatenate([X_fgp, prob_predictions], axis=1)
+        else:
+            return X_fgp
 
     def _predict_clf_proba(self, X, y=None):
-        X_fgp = X[:, self.fgp_cols]
-        X_fgp_proc = self._fgp_vs.transform(X_fgp)
-        return self._clf.predict_proba(X_fgp_proc).astype('float32')
+        if self._clf is not None:
+            X_fgp = X[:, self.fgp_cols]
+            X_fgp_proc = self._fgp_vs.transform(X_fgp)
+            return self._clf.predict_proba(X_fgp_proc).astype('float32')
+        else:
+            return np.zeros(X.shape[0]).astype('float32')
