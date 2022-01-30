@@ -1,3 +1,12 @@
+"""
+This script is work in progress... To make it work, you need to:
+1. Create models using metalearning_test.py. Run
+        $ make test_projections
+    in an OS terminal.
+2. Run this script. Run
+        $ make rank_candidates
+    in an OS terminal.
+"""
 import copy
 import os
 import pickle
@@ -11,7 +20,7 @@ from cmmrt.projection.metalearning_train import get_representatives
 from cmmrt.projection.data import Detrender
 
 
-PATH = "results/projection/with_mean/detrender/wd_4em3_128"
+PATH = "results/projection/models_to_rank_with"
 N_GROUPS = 5
 
 def get_ppm_error(mass, ppm_error=10):
@@ -21,7 +30,6 @@ def rank_projections(system, cuttoff, kegg_predret, kegg_to_rank, path,
                      n_annotations, n_groups=10, do_plot=False):
     system_data = kegg_predret[(kegg_predret.System == system) & (kegg_predret.rt > cuttoff)]
     model, scaler = pickle.load(open(os.path.join(path, f"gp_model_excluding_{system}.pkl"), "rb"))
-    # print(model.gp.covar_module.kernels[0].base_kernel.lengthscale)
     system_data["rt"] = scaler.transform(system_data["rt"].values.reshape(-1, 1)).flatten()
     system_data["model_prediction"] = scaler.transform(system_data["model_prediction"].values.reshape(-1, 1)).flatten()
     system_data = system_data.astype({'model_prediction': 'float32', 'rt': 'float32'}, copy=False)
@@ -32,7 +40,6 @@ def rank_projections(system, cuttoff, kegg_predret, kegg_to_rank, path,
                                       n_groups)
     train_logical = system_data['Pubchem'].isin(pubchems)
     train = system_data[train_logical]
-    # test = system_data[~train_logical]
     x, y = (
         torch.from_numpy(train.model_prediction.values.reshape(-1, 1)),
         torch.from_numpy(train.rt.values)
@@ -42,26 +49,9 @@ def rank_projections(system, cuttoff, kegg_predret, kegg_to_rank, path,
         detrender = Detrender()
         y = detrender.fit_transform(x, y)
     model.set_train_data(x, y)
-    # model.train()
-    # likelihood_param = [p for n, p in model.named_parameters() if 'likelihood' in n]
-    # optimizer = torch.optim.Adam(likelihood_param, lr=0.1)
-    # mll = gpytorch.mlls.ExactMarginalLogLikelihood(model.gp.likelihood, model.gp)
-    # training_iter = 500
-    # for i in range(training_iter):
-    #     optimizer.zero_grad()
-    #     loss = -mll(model(x), y)
-    #     loss.backward()
-    #     if i % 100 == 0:
-    #         print('Iter %d/%d - Loss: %.3f - noise: %.3f' % (
-    #             i + 1, training_iter, loss.item(),
-    #             model.gp.likelihood.noise.item()
-    #         ))
-    #     optimizer.step()
     model.eval()
     with torch.no_grad():
         predictions = model(torch.from_numpy(test.model_prediction.values.reshape(-1, 1)))
-        # test["projection_mean"] = detrender.inverse_transform(predictions.mean)
-        # test["projection_std"] = torch.sqrt(detrender.inverse_var_transform(predictions.variance))
         test["projection_mean"] = predictions.mean
         test["projection_std"] = torch.sqrt(predictions.variance)
         if use_detrender:
@@ -94,15 +84,15 @@ def rank_projections(system, cuttoff, kegg_predret, kegg_to_rank, path,
             mean = detrender.inverse_transform(mean)
             var = detrender.inverse_var_transform(var)
             preds_mean = detrender.inverse_transform(preds_mean)
-        plt.scatter(system_data.model_prediction.values,
-                    system_data.rt.values)
-        plt.scatter(x, y, marker='x')
-        plt.plot(sorted_x, preds_mean)
-        plt.plot(sorted_x, mean, '--', color='orange')
-        plt.plot(sorted_x, mean + 2 * torch.sqrt(var), '--', color='orange')
-        plt.plot(sorted_x, mean - 2 * torch.sqrt(var), '--', color='orange')
-        plt.title(system)
-        plt.show()
+        # plt.scatter(system_data.model_prediction.values,
+        #             system_data.rt.values)
+        # plt.scatter(x, y, marker='x')
+        # plt.plot(sorted_x, preds_mean)
+        # plt.plot(sorted_x, mean, '--', color='orange')
+        # plt.plot(sorted_x, mean + 2 * torch.sqrt(var), '--', color='orange')
+        # plt.plot(sorted_x, mean - 2 * torch.sqrt(var), '--', color='orange')
+        # plt.title(system)
+        # plt.show()
 
     in_top_df = pd.DataFrame(in_top_results).rename(columns={0: "in_top_1", 1: "in_top_2", 2: "in_top_3"})
     return in_top_df

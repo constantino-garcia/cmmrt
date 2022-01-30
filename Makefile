@@ -81,12 +81,16 @@ train_projections:
 
 ## Test the performance of meta-training for projections using 4 reference CMs
 test_projections:
-	$(PYTHON_INTERPRETER) cmmrt/projection/metalearning_test.py -s results/projection 
+	$(PYTHON_INTERPRETER) cmmrt/projection/metalearning_test.py \
+	-s results/projection/models_to_rank_with
 
 train_dnn:
 	$(PYTHON_INTERPRETER) cmmrt/rt/train_dnn_model.py \
 		--storage sqlite:///results/optuna/dnn.db --save_to saved_models \
 		--smoke_test # FIXME: remove this line for complete training
+
+rank_candidates:
+	$(PYTHON_INTERPRETER) cmmrt/projection/rank_candidates.py 
 
 
 
