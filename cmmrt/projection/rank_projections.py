@@ -110,7 +110,7 @@ def rank_projections(system, cuttoff, kegg_predret, kegg_to_rank, path,
 
 if __name__ == "__main__":
     path = PATH
-    n_annotations_list = [10, 20, 50]
+    n_annotations_list = [10, 20, 25, 30, 40, 50]
     n_repeats = 500
     n_groups = N_GROUPS
 
@@ -138,3 +138,4 @@ if __name__ == "__main__":
     print(rank_projections_df.drop(["repetition_nb"], axis=1).
           groupby(["excluded_system", "n_annotations"]).agg(['mean', 'std']))
 
+    print('done')

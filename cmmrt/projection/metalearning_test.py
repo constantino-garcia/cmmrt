@@ -199,7 +199,7 @@ if __name__ == '__main__':
             all_data.to_csv(results_filename + '.csv')
             support_data.to_csv(results_filename + '_support.csv')
 
-            f = plt.figure(figsize=(16, 9))
-            plot_projection(all_data, support_data)
-            plt.title(exclude_system)
-            f.savefig(results_filename + '.png', bbox_inches='tight')
+            # f = plt.figure(figsize=(16, 9))
+            # plot_projection(all_data, support_data)
+            # plt.title(exclude_system)
+            # f.savefig(results_filename + '.png', bbox_inches='tight')
