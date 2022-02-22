@@ -4,7 +4,6 @@ import lightgbm as lgb
 import numpy as np
 import optuna
 from gpytorch.utils.errors import NotPSDError
-from lightgbm import LGBMRegressor
 from optuna.integration import LightGBMTunerCV
 from optuna.trial import TrialState
 from sklearn.base import clone
@@ -18,6 +17,7 @@ from cmmrt.rt.models.ensemble.Blender import Blender
 from cmmrt.rt.models.gp.DKL import SkDKL
 from cmmrt.rt.models.nn.SkDnn import SkDnn
 from cmmrt.utils.train.loss import truncated_medae_scorer
+from cmmrt.rt.models.gbm.SelectiveLGBMRegressor import SelectiveLGBMRegressor
 
 
 @singledispatch
@@ -81,7 +81,7 @@ def _(estimator: SkDKL, trial):
 
 
 @suggest_params.register
-def _(estimator: LGBMRegressor, trial):
+def _(estimator: SelectiveLGBMRegressor, trial):
     params = {
         'objective': 'regression',
         'verbosity': -1,
@@ -192,7 +192,8 @@ def param_search(estimator, X, y, cv, study, n_trials, keep_going=False):
 
 
 @param_search.register
-def _(estimator: LGBMRegressor, X, y, cv, study, n_trials, keep_going=False):
+def _(estimator: SelectiveLGBMRegressor, X, y, cv, study, n_trials, keep_going=False):
+    print(f"Starting LGBM param search for study {study}")
     dtrain = lgb.Dataset(X, label=y)
     trials = [trial for trial in study.get_trials() if trial.state in [TrialState.COMPLETE, TrialState.PRUNED]]
     # LightGBMTunerCV always runs 68 trials
@@ -225,6 +226,9 @@ def _(estimator: Blender, X, y, cv, study, n_trials, keep_going=False):
         (n, set_best_params(clone(model), study)) for n, model, study in models_with_studies
     ]
 
+    # FIXME: remove next line
+    return estimator
+
     # Train with best parameters and predict to create the dataset for the blender
     blended_X = []
     fitted_estimators = []
@@ -253,7 +257,7 @@ def _(estimator: Blender, X, y, cv, study, n_trials, keep_going=False):
 def _create_study(model_name, study_prefix, storage):
     return optuna.create_study(
         study_name=f'{study_prefix}-{model_name}',
-        direction='minimize' if model_name == 'lgb' else 'maximize',
+        direction='minimize' if 'lgb' in model_name else 'maximize',
         storage=storage,
         load_if_exists=True,
         pruner=optuna.pruners.MedianPruner()
@@ -313,6 +317,6 @@ def load_best_params(estimator, study):
 
 
 @load_best_params.register
-def _(estimator: LGBMRegressor, study):
+def _(estimator: SelectiveLGBMRegressor, study):
     tuner = _create_lgbm_tuner(None, study, None)
     return tuner.best_params

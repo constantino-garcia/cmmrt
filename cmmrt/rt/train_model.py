@@ -25,7 +25,6 @@ import pickle
 from collections import namedtuple
 
 import numpy as np
-from lightgbm import LGBMRegressor
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import RepeatedKFold
 
@@ -38,6 +37,7 @@ from cmmrt.rt.models.nn.SkDnn import SkDnn
 from cmmrt.rt.data import AlvadescDataset
 from cmmrt.utils.train.param_search import param_search
 from cmmrt.utils.generic_utils import handle_saving_dir
+from cmmrt.rt.models.gbm.SelectiveLGBMRegressor import SelectiveLGBMRegressor
 
 BlenderConfig = namedtuple('BlenderConfig', ['train_size', 'n_strats', 'random_state'])
 ParamSearchConfig = namedtuple('ParamSearchConfig', ['storage', 'study_prefix', 'param_search_cv', 'n_trials'])
@@ -58,27 +58,29 @@ def create_smoke_blender(desc_cols, fgp_cols, binary_cols, blender_config):
 def create_blender(desc_cols, fgp_cols, binary_cols, blender_config):
     """Create a blender model with the specified configuration"""
     estimators = [
-        # Deep Kernel Learning
-        ('full_dkl', SkDKL(2, use_col_indices='all', binary_col_indices=binary_cols)),
-        ('desc_dkl', SkDKL(2, use_col_indices=desc_cols, binary_col_indices=binary_cols)),
-        ('fgp_dkl', SkDKL(2, use_col_indices=fgp_cols, binary_col_indices=binary_cols)),
-        # Deep Neural Nets
-        ('full_mlp', SkDnn(use_col_indices='all', binary_col_indices=binary_cols, transform_output=True)),
-        ('desc_mlp', SkDnn(use_col_indices=desc_cols, binary_col_indices=binary_cols, transform_output=True)),
-        ('fgp_mlp', SkDnn(use_col_indices=fgp_cols, binary_col_indices=binary_cols, transform_output=True)),
-        # XGBoost
-        ('full_xgb', SelectiveXGBRegressor(use_col_indices='all', binary_col_indices=binary_cols)),
-        ('desc_xgb', SelectiveXGBRegressor(use_col_indices=desc_cols, binary_col_indices=binary_cols)),
-        ('fgp_xgb', SelectiveXGBRegressor(use_col_indices=fgp_cols, binary_col_indices=binary_cols)),
+        # # Deep Kernel Learning
+        # ('full_dkl', SkDKL(2, use_col_indices='all', binary_col_indices=binary_cols)),
+        # ('desc_dkl', SkDKL(2, use_col_indices=desc_cols, binary_col_indices=binary_cols)),
+        # ('fgp_dkl', SkDKL(2, use_col_indices=fgp_cols, binary_col_indices=binary_cols)),
+        # # Deep Neural Nets
+        # ('full_mlp', SkDnn(use_col_indices='all', binary_col_indices=binary_cols, transform_output=True)),
+        # ('desc_mlp', SkDnn(use_col_indices=desc_cols, binary_col_indices=binary_cols, transform_output=True)),
+        # ('fgp_mlp', SkDnn(use_col_indices=fgp_cols, binary_col_indices=binary_cols, transform_output=True)),
+        # # XGBoost
+        # ('full_xgb', SelectiveXGBRegressor(use_col_indices='all', binary_col_indices=binary_cols)),
+        # ('desc_xgb', SelectiveXGBRegressor(use_col_indices=desc_cols, binary_col_indices=binary_cols)),
+        # ('fgp_xgb', SelectiveXGBRegressor(use_col_indices=fgp_cols, binary_col_indices=binary_cols)),
         # LGBM
-        ('lgb', LGBMRegressor()),
-        # CatBoosters
-        ('cb_0', WeightedCatBoostRegressor(1e-6, use_col_indices='all', binary_col_indices=binary_cols)),
-        ('cb_05', WeightedCatBoostRegressor(0.5, use_col_indices='all', binary_col_indices=binary_cols)),
-        ('cb_1', WeightedCatBoostRegressor(1., use_col_indices='all', binary_col_indices=binary_cols)),
-        ('cb_20', WeightedCatBoostRegressor(20, use_col_indices='all', binary_col_indices=binary_cols)),
-        ('cb_40', WeightedCatBoostRegressor(40, use_col_indices='all', binary_col_indices=binary_cols)),
-        ('cb_80', WeightedCatBoostRegressor(80, use_col_indices='all', binary_col_indices=binary_cols))
+        # ('full_lgb', SelectiveLGBMRegressor(use_col_indices='all', binary_col_indices=binary_cols, transform_output=False)),
+        ('desc_lgb', SelectiveLGBMRegressor(use_col_indices=desc_cols, binary_col_indices=binary_cols, transform_output=False)),
+        ('fgp_lgb', SelectiveLGBMRegressor(use_col_indices=fgp_cols, binary_col_indices=binary_cols, transform_output=False)),
+        # # CatBoosters
+        # ('cb_0', WeightedCatBoostRegressor(1e-6, use_col_indices='all', binary_col_indices=binary_cols)),
+        # ('cb_05', WeightedCatBoostRegressor(0.5, use_col_indices='all', binary_col_indices=binary_cols)),
+        # ('cb_1', WeightedCatBoostRegressor(1., use_col_indices='all', binary_col_indices=binary_cols)),
+        # ('cb_20', WeightedCatBoostRegressor(20, use_col_indices='all', binary_col_indices=binary_cols)),
+        # ('cb_40', WeightedCatBoostRegressor(40, use_col_indices='all', binary_col_indices=binary_cols)),
+        # ('cb_80', WeightedCatBoostRegressor(80, use_col_indices='all', binary_col_indices=binary_cols))
     ]
     return Blender(
         estimators, RandomForestRegressor(), **blender_config._asdict()
