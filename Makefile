@@ -87,8 +87,14 @@ test_projections:
 train_dnn:
 	$(PYTHON_INTERPRETER) cmmrt/rt/train_dnn_model.py \
 		--storage sqlite:///results/optuna/dnn.db --save_to saved_models \
-		--smoke_test # FIXME: remove this line for complete training
+		--trials 50
 
+predict_with_dnn:
+	$(PYTHON_INTERPRETER) cmmrt/rt/predict_with_dnn.py \
+		--fingerprints rt_data/CMM_vectorfingerprints.csv \
+		--preproc saved_models/feb_5/preprocessor.pkl \
+		--dnn saved_models/feb_5/dnn.pkl \
+		--save_to results/feb_5/predictions.csv
 
 #################################################################################
 # Self Documenting Commands                                                     #

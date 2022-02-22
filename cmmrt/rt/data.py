@@ -37,6 +37,8 @@ class AlvadescDataset:
         else:
             with bz2.BZ2File(filename, "rb") as f:
                 self.X, self.y, self.desc_cols, self.fgp_cols = pickle.load(f)
+        self.X = self.X.astype('float32')
+        self.y = self.y.astype('float32')
 
     @property
     def fingerprints(self):
