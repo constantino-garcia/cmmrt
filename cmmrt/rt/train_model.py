@@ -46,9 +46,10 @@ ParamSearchConfig = namedtuple('ParamSearchConfig', ['storage', 'study_prefix', 
 def create_smoke_blender(desc_cols, fgp_cols, binary_cols, blender_config):
     """Create a Blender object with a small number of base models for testing purposes"""
     estimators = [
-        ('desc_dkl', SkDKL(2, use_col_indices=desc_cols, binary_col_indices=binary_cols)),
-        ('fgp_mlp',
-         SkDnn(use_col_indices=fgp_cols, binary_col_indices=binary_cols, transform_output=True)),
+        # ('desc_dkl', SkDKL(2, use_col_indices=desc_cols, binary_col_indices=binary_cols)),
+        ('desc_lgb', SelectiveLGBMRegressor(use_col_indices=desc_cols, binary_col_indices=binary_cols))
+        # ('fgp_mlp',
+        #  SkDnn(use_col_indices=fgp_cols, binary_col_indices=binary_cols, transform_output=True)),
     ]
     return Blender(
         estimators, RandomForestRegressor(), **blender_config._asdict()
@@ -71,9 +72,9 @@ def create_blender(desc_cols, fgp_cols, binary_cols, blender_config):
         # ('desc_xgb', SelectiveXGBRegressor(use_col_indices=desc_cols, binary_col_indices=binary_cols)),
         # ('fgp_xgb', SelectiveXGBRegressor(use_col_indices=fgp_cols, binary_col_indices=binary_cols)),
         # LGBM
-        # ('full_lgb', SelectiveLGBMRegressor(use_col_indices='all', binary_col_indices=binary_cols, transform_output=False)),
-        ('desc_lgb', SelectiveLGBMRegressor(use_col_indices=desc_cols, binary_col_indices=binary_cols, transform_output=False)),
-        ('fgp_lgb', SelectiveLGBMRegressor(use_col_indices=fgp_cols, binary_col_indices=binary_cols, transform_output=False)),
+        # ('full_lgb', SelectiveLGBMRegressor(use_col_indices='all', binary_col_indices=binary_cols)),
+        ('desc_lgb', SelectiveLGBMRegressor(use_col_indices=desc_cols, binary_col_indices=binary_cols)),
+        ('fgp_lgb', SelectiveLGBMRegressor(use_col_indices=fgp_cols, binary_col_indices=binary_cols)),
         # # CatBoosters
         # ('cb_0', WeightedCatBoostRegressor(1e-6, use_col_indices='all', binary_col_indices=binary_cols)),
         # ('cb_05', WeightedCatBoostRegressor(0.5, use_col_indices='all', binary_col_indices=binary_cols)),

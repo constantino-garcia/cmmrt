@@ -194,10 +194,10 @@ def param_search(estimator, X, y, cv, study, n_trials, keep_going=False):
 @param_search.register
 def _(estimator: SelectiveLGBMRegressor, X, y, cv, study, n_trials, keep_going=False):
     print(f"Starting LGBM param search for study {study}")
-    dtrain = lgb.Dataset(X, label=y)
     trials = [trial for trial in study.get_trials() if trial.state in [TrialState.COMPLETE, TrialState.PRUNED]]
     # LightGBMTunerCV always runs 68 trials
     if len(trials) != 68:
+        dtrain = estimator.to_lgb_dataset(X, y)
         tuner = _create_lgbm_tuner(dtrain, study, cv)
         tuner.run()
     return load_best_params(estimator, study)
@@ -319,4 +319,5 @@ def load_best_params(estimator, study):
 @load_best_params.register
 def _(estimator: SelectiveLGBMRegressor, study):
     tuner = _create_lgbm_tuner(None, study, None)
+    print(tuner.best_params)
     return tuner.best_params
