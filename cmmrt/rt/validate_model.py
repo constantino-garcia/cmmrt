@@ -25,11 +25,13 @@ to see the options.
 import os
 import tempfile
 
+import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import median_absolute_error
 from sklearn.model_selection import StratifiedKFold
 
+from cmmrt.rt.data import is_non_retained
 from cmmrt.rt.train_model import create_base_parser
 from cmmrt.rt.train_model import load_data_and_configs
 from cmmrt.rt.train_model import tune_and_fit
@@ -47,12 +49,20 @@ def create_cv_parser(default_storage, default_study, description):
 
 def evaluate_all_estimators(blender, X_test, y_test, metrics, fold_number):
     """Evaluate all estimators in blender on the test set"""
+    is_non_retained_indicator = is_non_retained(y_test)
+    molecules_indices = {
+        'all': (np.ones_like(is_non_retained_indicator) == 1),
+        'retained': (is_non_retained_indicator == 0),
+        'non-retained': (is_non_retained_indicator == 1)
+    }
     iteration_results = []
     for estimator_name, estimator in blender._fitted_estimators + [('Blender', blender)]:
-        estimator_results = {k: metric(y_test, estimator.predict(X_test)) for k, metric in metrics.items()}
-        estimator_results['estimator'] = estimator_name
-        estimator_results['fold'] = fold_number
-        iteration_results.append(estimator_results)
+        for molecules, indices in molecules_indices.items():
+            estimator_results = {k: metric(y_test[indices], estimator.predict(X_test[indices, ...])) for k, metric in metrics.items()}
+            estimator_results['estimator'] = estimator_name
+            estimator_results['fold'] = fold_number
+            estimator_results['molecules'] = molecules
+            iteration_results.append(estimator_results)
     return pd.DataFrame(iteration_results)
 
 
