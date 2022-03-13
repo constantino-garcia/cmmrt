@@ -4,6 +4,8 @@ import lightgbm as lgb
 import numpy as np
 import pandas as pd
 from sklearn.base import RegressorMixin, BaseEstimator
+from sklearn.compose import ColumnTransformer
+from sklearn.feature_selection import VarianceThreshold
 
 
 class SelectiveLGBMRegressor(BaseEstimator, RegressorMixin):
@@ -43,11 +45,18 @@ class SelectiveLGBMRegressor(BaseEstimator, RegressorMixin):
         return lgb.LGBMRegressor(**params)
 
     def fit(self, X_, y):
+        _VAR_P = 0.99
         self._model = self._init_regressor()
         X, binary_indices = self._select_columns(X_)
+        self._thresholder = preproc = ColumnTransformer(
+                [("var_th", VarianceThreshold(_VAR_P * (1 - _VAR_P)), binary_indices)],
+                remainder='passthrough'
+        )
+        X = self._thresholder.fit_transform(X)
         self._model.fit(X, y)
         return self
 
     def predict(self, X_):
         X, _ = self._select_columns(X_)
+        X = self._thresholder.transform(X)
         return self._model.predict(X)

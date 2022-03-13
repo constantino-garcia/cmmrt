@@ -47,7 +47,7 @@ def create_smoke_blender(desc_cols, fgp_cols, binary_cols, blender_config):
     """Create a Blender object with a small number of base models for testing purposes"""
     estimators = [
         # ('desc_dkl', SkDKL(2, use_col_indices=desc_cols, binary_col_indices=binary_cols)),
-        ('desc_lgb', SelectiveLGBMRegressor(use_col_indices=desc_cols, binary_col_indices=binary_cols))
+        ('fgp_lgb', SelectiveLGBMRegressor(use_col_indices=binary_cols, binary_col_indices=binary_cols))
         # ('fgp_mlp',
         #  SkDnn(use_col_indices=fgp_cols, binary_col_indices=binary_cols, transform_output=True)),
     ]
