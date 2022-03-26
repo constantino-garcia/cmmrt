@@ -24,8 +24,6 @@ mean and median absolute errors of 39.2±1.2 s and 17.2 ± 0.9 s, respectively.
 ## Fingerprints generation
 To train your own model or to predict the RT of your own set of compounds it is necessary to generate the fingerprints using alvaDesc software (under license, check [alvadesc software](https://www.alvascience.com/alvadesc/)). 
 
-The 
-
 You may find useful the files:
 
 * [build_data.py](cmmrt/rt/build_data_cmm.py): it contains the necessary functions to generate fingerprints and/or descriptors. Specifically, the function generate_vector_fingerprints(aDesc, chemicalStructureFile = None, smiles = None) generates the fingerprints used in the CMM RT model. This function processes an instance of the alvaDesc software, and the input file path representing the compound of interest in the format SMILES, mol, SDF, mol2 or hin. If a String of SMILES is desired directly, it can be directly specified in the parameter SMILES. It returns a string formed the values of the ECFP, MACCSFP and PFP fingerprints sequentially joint. 
