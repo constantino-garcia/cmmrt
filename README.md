@@ -10,8 +10,7 @@ Highlights:
 * We have trained state-of-the-art machine learning regressors using the 80,038 
 experimental RTs from the METLIN small molecule dataset (SMRT); both retained 
 and unretained molecules were considered.
-* 5666 molecular descriptors and 2214 fingerprints (MACCS166, 
-Extended Connectivity, and Path Fingerprints fingerprints) were generated with
+* 5,666 molecular descriptors and 2,214 fingerprints (MACCS166, Extended Connectivity, and Path Fingerprints fingerprints) were generated with
  the alvaDesc software. The models were trained using only the descriptors, 
  only the fingerprints, and both types of features simultaneously. Results suggest
  that fingerprints tend to perform better.
@@ -21,6 +20,18 @@ mean and median absolute errors of 39.2±1.2 s and 17.2 ± 0.9 s, respectively.
 * A novel Bayesian meta-learning approach is proposed for RT projection between
  CMs from as few as 20 molecules while still obtaining competitive error rates 
  compared with previous approaches.
+
+## Fingerprints generation
+To train your own model or to predict the RT of your own set of compounds it is necessary to generate the fingerprints using alvaDesc software (under license, check [alvadesc software](https://www.alvascience.com/alvadesc/)). 
+
+The 
+
+You may find useful the files:
+
+* [build_data.py](cmmrt/rt/build_data_cmm.py): it contains the necessary functions to generate fingerprints and/or descriptors. Specifically, the function generate_vector_fingerprints(aDesc, chemicalStructureFile = None, smiles = None) generates the fingerprints used in the CMM RT model. This function processes an instance of the alvaDesc software, and the input file path representing the compound of interest in the format SMILES, mol, SDF, mol2 or hin. If a String of SMILES is desired directly, it can be directly specified in the parameter SMILES. It returns a string formed the values of the ECFP, MACCSFP and PFP fingerprints sequentially joint. 
+The function generate_vector_fps_descs(aDesc, chemicalStructureFile, fingerprint_types = ("ECFP", "MACCSFP", "PFP"), descriptors = True) generates both the the descriptors and the fingerprints. It contains the descriptors values value by value and the ECFP, MACCSFP and PFP fingerprints andsequentially joint. 
+* [build_data_smrt.py](cmmrt/rt/build_data_smrt.py): it is an example of the processing of a CSV input file containing the pubchem id and the inchi. The pubchem id is used as a reference to access the corresponding SDF file representing the structure. It generates a file containing the ECFP, MACCSFP and PFP fingerprints sequentially joint for each input compound.
+* [build_data_cmm.py](cmmrt/rt/build_data_cmm.py): it is an example of the processing of a CSV input file containing the pubchem id and the SMILES. The pubchem id is used as a reference to access the corresponding SDF file representing the structure. It generates a file containing the ECFP, MACCSFP and PFP fingerprints sequentially joint for each input compound.
 
 
 ## Getting started
