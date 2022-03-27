@@ -18,8 +18,13 @@ and unretained molecules were considered.
 cosine annealing warm restarts and stochastic weight averaging, achieving a 
 mean and median absolute errors of 39.2±1.2 s and 17.2 ± 0.9 s, respectively.
 * A novel Bayesian meta-learning approach is proposed for RT projection between
- CMs from as few as 20 molecules while still obtaining competitive error rates 
+ CMs from as few as 10 molecules while still obtaining competitive error rates 
  compared with previous approaches.
+
+## Notebooks 
+Notebooks illustrating several aspects of the tool are available under the `notebooks` folder:
+* `train_with_rdkit.ipynb`: train a DNN with the methods of the paper on SMRT using RDKit fingerprints.
+* `projections_to_different_cm.ipynb`: map experimental retention times to the retention times predicted with a DNN (or viceversa). This is done by training a meta-learned GP prior on a small subset of known molecules. **Currently on branch proj_experiments.**
 
 ## Fingerprints generation
 To train your own model or to predict the RT of your own set of compounds it is necessary to generate the fingerprints using alvaDesc software (under license, check [alvadesc software](https://www.alvascience.com/alvadesc/)). 
