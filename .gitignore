@@ -88,8 +88,10 @@ rt_data/
 # Mypy cache
 .mypy_cache/
 
+# R stuff
+.Rhistory
+
 # Residuals from model training
 cmmrt/rt/models/catboost_info/
 **/*.pth
-results/projection/
-
+results
