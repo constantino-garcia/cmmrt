@@ -93,6 +93,12 @@ train_dnn:
 		--storage sqlite:///results/optuna/dnn.db --save_to saved_models \
 		--smoke_test # FIXME: remove this line for complete training
 
+predict_with_dnn:
+	 $(PYTHON_INTERPRETER) cmmrt/rt/predict_with_dnn.py \
+		--preproc saved_models/v0/preprocessor.pkl \
+		--dnn saved_models/v0/dnn.pkl \
+		--fingerprints rt_data/CMM_vectorfingerprints.csv \
+		--save_to results/rt/my_cmm_predictions.csv
 
 #################################################################################
 # Self Documenting Commands                                                     #
