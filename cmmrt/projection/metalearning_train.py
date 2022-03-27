@@ -19,7 +19,8 @@ import warnings
 
 import torch
 
-from cmmrt.projection.data import load_xabier_projections, ProjectionsTasks, load_predicted_predret
+from cmmrt.projection.data import _load_predret_with_xabier_predictions, load_predret_with_predictions
+from cmmrt.projection.projection_tasks import ProjectionsTasks
 from cmmrt.projection.metatrainers.utils import create_metatrainer
 from cmmrt.projection.models.utils import create_projector_and_optimizer
 from cmmrt.utils.generic_utils import handle_saving_dir
@@ -99,7 +100,7 @@ def split_systems_on_train_test(data, direction, x_scaler, y_scaler,
 
 
 def load_train_test_tasks(dataset, direction, download_directory, remove_non_retained, test_systems):
-    data, systems, x_scaler, y_scaler = load_predicted_predret(dataset, download_directory, remove_non_retained)
+    data, systems, x_scaler, y_scaler = load_predret_with_predictions(dataset, download_directory, remove_non_retained)
     train_tasks, test_tasks = split_systems_on_train_test(data, direction, x_scaler, y_scaler, test_systems)
     return train_tasks, test_tasks
 

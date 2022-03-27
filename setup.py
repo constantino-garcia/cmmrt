@@ -20,5 +20,5 @@ setup(
         "scikit_learn>=0.24.2",
         "matplotlib>=3.3.3"
     ],
-    package_data={"cmmrt": ["data/*.pt"]}
+    package_data={"cmmrt": ["data/**/*.pt", "data/**/*.csv"]}
 )

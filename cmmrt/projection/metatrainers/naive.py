@@ -2,7 +2,7 @@ import inspect
 
 import torch
 
-from cmmrt.projection.data import ProjectionsTasks
+from cmmrt.projection.projection_tasks import ProjectionsTasks
 from cmmrt.projection.metatrainers.base import MetaTrainer
 from cmmrt.projection.models.projector.Projector import Projector
 from cmmrt.utils.train.torchutils import get_default_device

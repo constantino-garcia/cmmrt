@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from cmmrt.projection.data import ProjectionsTasks
+from cmmrt.projection.projection_tasks import ProjectionsTasks
 
 
 class MetaTrainer(ABC):

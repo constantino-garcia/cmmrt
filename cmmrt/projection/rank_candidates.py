@@ -10,13 +10,15 @@ This script is work in progress... To make it work, you need to:
 import copy
 import os
 
+import importlib_resources
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
 from tqdm import tqdm
 
-from cmmrt.projection.data import load_cmm_predictions, get_representatives
+from cmmrt.projection.data import get_representatives
+from cmmrt.rt.predictions import load_cmm_predictions
 from cmmrt.projection.models.projector.loader import _load_projector_pipeline_from
 
 PATH = "results/projection/models_to_rank_with"
@@ -35,7 +37,9 @@ def rank_projections(system, cuttoff, kegg_predret, kegg_to_rank, path,
     system_data = system_data.astype({'model_prediction': 'float32', 'rt': 'float32'}, copy=False)
     test = copy.deepcopy(kegg_to_rank)
     test = test.astype({'model_prediction': 'float32'}, copy=False)
-    projector = _load_projector_pipeline_from(f"cmmrt/data/{system}.pt", mean='constant', kernel='poly')
+    # TODO: avoid the use of _ function
+    projector = _load_projector_pipeline_from(f"cmmrt/data/metalearned_projectors/{system}.pt", mean='constant',
+                                              kernel='poly')
     _, pubchems = get_representatives(system_data.model_prediction.values, system_data.Pubchem.values,
                                       n_annotations, n_groups)
     train_logical = system_data['Pubchem'].isin(pubchems)
@@ -111,11 +115,11 @@ def load_kegg_experiment_data():
         'model_prediction': tmp.rt_pred.values
     })
     preds.model_prediction /= 60
-    # FIXME
-    kegg_predret = pd.read_csv('/data/code/research/cembio/cmmrt/rt_data/kegg_predret.csv').drop(
-        columns=['Unnamed: 0', 'model_prediction'])
-    to_rank = pd.read_csv('/data/code/research/cembio/cmmrt/rt_data/kegg_molecules_to_rank.csv').drop(
-        columns=['Unnamed: 0', 'model_prediction'])
+
+    kegg_predret_path = importlib_resources.files("cmmrt.data.rank_experiment").joinpath("kegg_predret.csv")
+    kegg_predret = pd.read_csv(kegg_predret_path).drop(columns=['Unnamed: 0', 'model_prediction'])
+    to_rank_path = importlib_resources.files("cmmrt.data.rank_experiment").joinpath("kegg_molecules_to_rank.csv")
+    to_rank = pd.read_csv(to_rank_path).drop(columns=['Unnamed: 0', 'model_prediction'])
 
     kegg_predret_cmm = kegg_predret.merge(preds, on='Pubchem', how='inner').drop_duplicates(ignore_index=True)
     to_rank_cmm = to_rank.merge(preds, on='Pubchem', how='inner').drop_duplicates(ignore_index=True)

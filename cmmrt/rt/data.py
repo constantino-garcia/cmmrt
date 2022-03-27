@@ -24,6 +24,7 @@ class FeaturizedRtData(ABC):
         desc_cols: 1D numpy array containing the indices of the X array that correspond with descriptors.
         y: 1D numpy array containing the retention times of each molecule in the dataset.
     """
+
     def __init__(self, filename, download_directory):
         """Initialize the class.
         :param download_directory: directory where the featurized molecules with their retention times are downloaded.
@@ -115,7 +116,6 @@ class AlvadescDataset(FeaturizedRtData):
         }
 
 
-
 def load_alvadesc_descriptors(download_directory="rt_data", n=None, split_as_np=True):
     """Downloads the SMRT dataset featurized with Alvadesc's descriptors.
 
@@ -127,7 +127,7 @@ def load_alvadesc_descriptors(download_directory="rt_data", n=None, split_as_np=
     """
     filename = "descriptors.pklz"
     filename = os.path.join(download_directory, filename)
-    url = "https://drive.google.com/u/0/uc?id=1MMPsk8jghXfzp2DvrRsHsz4iB03shndP&export=download"
+    url = "https://drive.google.com/u/0/uc?id=1MMPsk8jghXfzp2DvrRsHsz4iB03shndP&export=download&confirm=t"
     return _load_pickled_data(filename, url, n, split_as_np)
 
 
@@ -198,10 +198,16 @@ def binary_features_cols(X):
     return np.where(np.apply_along_axis(is_binary_feature, 0, X))[0]
 
 
-# TODO: make use of download_directory
 def load_cmm_fingerprints(download_directory="rt_data"):
     """Load Alvadesc fingerprints of all molecules included in Ceu Mass Mediator (CMM)"""
-    return pd.read_csv("rt_data/CMM_vectorfingerprints.csv")
+    filename = os.path.join(download_directory, "CMM_vectorfingerprints.csv")
+    if not os.path.exists(filename):
+        if not os.path.exists(os.path.dirname(filename)):
+            os.mkdir(os.path.dirname(filename))
+        import gdown
+        gdown.download("https://drive.google.com/u/0/uc?id=1PkFySaZSD0PGH_MrLrcDKyC43PvxeXrJ&export=download&confirm=t",
+                       filename)
+    return pd.read_csv(filename)
 
 
 class PredRetFeaturizedSystem(FeaturizedRtData):
@@ -234,3 +240,9 @@ class PredRetFeaturizedSystem(FeaturizedRtData):
             'desc_cols': np.array([], dtype='int'),
             'fgp_cols': np.arange(X.shape[1], dtype='int')
         }
+
+
+if __name__ == "__main__":
+    a = pd.read_csv("rt_data/CMM_vectorfingerprints.csv")
+    b = load_cmm_fingerprints("/tmp")
+    print(a.compare(b))
