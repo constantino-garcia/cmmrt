@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 setup(
     name='cmmrt',
     packages=find_packages(),
-    version='0.1.0',
+    version='0.2.0',
     description='Models for prediction and projection of retention times from molecular descriptors and fingerprints',
     author='CEU',
     license='MIT',
@@ -19,5 +19,6 @@ setup(
         "lightgbm>=3.2.1",
         "scikit_learn>=0.24.2",
         "matplotlib>=3.3.3"
-    ]
+    ],
+    package_data={"cmmrt": ["data/**/*.pt", "data/**/*.csv"]}
 )

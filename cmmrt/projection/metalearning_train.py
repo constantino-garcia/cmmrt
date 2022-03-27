@@ -17,203 +17,65 @@ to see the options.
 import os
 import warnings
 
-import gpytorch
-import pandas as pd
 import torch
-from gpytorch.kernels import SpectralMixtureKernel, RBFKernel, PolynomialKernel, LinearKernel, ScaleKernel
-from sklearn.cluster import KMeans
-from torch.utils.data import DataLoader
 
-from cmmrt.projection.data import load_xabier_projections, ProjectionsTasks, Detrender
-from cmmrt.projection.gp import ExactGPModel, FeatureExtractor, DKLProjector, MLPMean
+from cmmrt.projection.data import _load_predret_with_xabier_predictions, load_predret_with_predictions
+from cmmrt.projection.projection_tasks import ProjectionsTasks
+from cmmrt.projection.metatrainers.utils import create_metatrainer
+from cmmrt.projection.models.utils import create_projector_and_optimizer
 from cmmrt.utils.generic_utils import handle_saving_dir
-from cmmrt.utils.train.torchutils import get_default_device
 
 warnings.simplefilter("ignore")
-
-# We use Symmetric Mean Absolute Percentage Error (SMAPE) for checking convergence
-def smape(x, y):
-    """Symmetric Mean Absolute Percentage Error (SMAPE)"""
-    with torch.no_grad():
-        l1_norm = torch.abs if x.ndim == 0 else lambda x: torch.linalg.norm(x, ord=1)
-        return l1_norm(x - y) / torch.max(
-            torch.tensor(1e-10, requires_grad=False),
-            (l1_norm(x) + l1_norm(y)) / 2.
-        ).item()
-
-
-def meta_train_gp(dat, scaler, use_feature_extraction=True, mean='zero',
-                  kernel='spectral_mixture', num_mixtures=4,
-                  p_support_range=(1.0, 1.0), max_epochs=156, device=get_default_device(),
-                  tolerance=5e-3):
-    """Meta-train a GP model using retention times from different chromatographic methods.
-    :param dat: pandas dataframe with information of the retention times predicted by a machine
-        learning model (column 'rt_pred') and the retention times measured ('rt_exper') in different
-        chromatography systems ('system').
-    :param scaler: scikit-learn transformer or None. If provided, the scaler is applied to the retention times.
-    :param use_feature_extraction: boolean indicating if a feature extraction neural network should be used
-    before the GP model.
-    :param mean: Mean to be used in the GP model. Should be one of 'zero', 'mlp', 'linear'.
-    :param kernel: Kernel to be used in the GP model. Should be one of 'spectral_mixture', 'rbf', 'poly', 'rbf+linear', 'rbf+poly'.
-    :param num_mixtures: number of spectral mixture components to be used in the spectral mixture kernel.
-    :param p_support_range: proportion of the systems' data used for creating a projection task specified
-        as a tuple (min_p, max_p).
-    :param max_epochs: maximum number of epochs for meta-training the GP model.
-    :param device: torch device to be used ('cuda' or 'cpu').
-    :param tolerance: tolerance for convergence of the meta-training.
-    :return: meta-trained GP model and marginal log-likelihood at the end of meta-training.
-
-    """
-    tasks = ProjectionsTasks(dat, p_support_range=p_support_range, scaler=scaler)
-    tasks_dl = DataLoader(tasks, batch_size=1, shuffle=True)
-
-    dim = 2 if use_feature_extraction else 1
-    if mean == 'zero':
-        mean = gpytorch.means.ZeroMean()
-    elif mean == 'linear':
-        mean = gpytorch.means.LinearMean(input_size=dim)
-    elif mean == 'mlp':
-        mean = MLPMean(dim)
-    else:
-        raise ValueError('Invalid mean')
-
-    if kernel == 'spectral_mixture':
-        kernel = SpectralMixtureKernel(num_mixtures=num_mixtures, ard_num_dims=dim)
-        train_x, train_y = zip(*[batch for batch in tasks_dl])
-        train_x = torch.cat(train_x, axis=1).squeeze(0)
-        train_y = torch.cat(train_y, axis=1).squeeze(0)
-        kernel.initialize_from_data(train_x, train_y)
-        del train_x
-        del train_y
-    elif kernel == 'rbf':
-        kernel = ScaleKernel(RBFKernel(ard_num_dims=dim))
-    elif kernel == 'rbf+linear':
-        kernel = ScaleKernel(RBFKernel(ard_num_dims=dim)) + ScaleKernel(LinearKernel(num_dimensions=dim))
-    elif kernel == 'rbf+poly':
-        kernel = ScaleKernel(RBFKernel(ard_num_dims=dim)) + ScaleKernel(PolynomialKernel(power=3))
-    elif kernel == "poly":
-        kernel = ScaleKernel(PolynomialKernel(power=4))
-    else:
-        raise ValueError('Invalid kernel. Should be spectral_mixture or RBF')
-    likelihood = gpytorch.likelihoods.GaussianLikelihood()
-    gp = ExactGPModel(mean, kernel, likelihood, None, None)
-    if use_feature_extraction:
-        feature_extractor = FeatureExtractor(256)
-    else:
-        feature_extractor = None
-    model = DKLProjector(feature_extractor, gp)
-
-    if device == 'cuda':
-        model = model.cuda()
-    # mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model.gp)
-    mll = gpytorch.mlls.LeaveOneOutPseudoLikelihood(likelihood, model.gp)
-
-    optimizer = torch.optim.Adam([
-        {'params': model.parameters(), 'lr': 0.001}
-    ])
-    model.train()
-
-    if max_epochs <= 0:
-        check_convergence = True
-        max_epochs = 100000
-    else:
-        check_convergence = False
-
-    def get_model_params():
-        with torch.no_grad():
-            return [torch.clone(par.squeeze()) for par in list(model.parameters())]
-
-    last_params = get_model_params()
-    for epoch in range(1, max_epochs + 1):
-        total_loss = 0
-        for x, y in tasks_dl:
-            x = x.squeeze(0)
-            y = y.squeeze(0)
-
-            detrender = Detrender()
-            y = detrender.fit_transform(x, y)
-
-            if device == 'cuda':
-                x = x.cuda()
-                y = y.cuda()
-
-            optimizer.zero_grad()
-            model.set_train_data(x, y, strict=False)
-            predictions = model(x)
-            loss = -mll(predictions, y)
-            total_loss += loss
-            loss.backward()
-            optimizer.step()
-
-        if epoch % 10 == 0:
-            print('[%d] - Loss: %.3f  noise: %.3f' % (
-                epoch, total_loss.item(), model.gp.likelihood.noise.item()
-            ))
-        if check_convergence:
-            new_params = get_model_params()
-            max_smape = torch.max(
-                torch.stack([smape(new_par, last_par) for new_par, last_par in zip(new_params, last_params)])
-            )
-            if max_smape < tolerance:
-                print(f"Model has converged! Stopping training at epoch {epoch}")
-                break
-            last_params = get_model_params()
-
-
-    model.eval()
-    return model, mll
-
-
-def get_representatives(x, y, test_size, n_quantiles=10):
-    """Get representative samples of the (x, y) dataset by selecting points that 'cover' the x range."""
-    x_ndim = x.ndim
-    y_ndim = y.ndim
-    # First sample() performs stratified sampling, second sample() limits the number
-    # of samples to test_size
-    # groups = pd.qcut(x.flatten(), n_quantiles)
-    kmeans = KMeans(n_quantiles).fit(x.reshape(-1, 1))
-    groups = kmeans.labels_
-
-    df = pd.DataFrame({'x': x.flatten(), 'y': y.flatten(), 'group': groups})
-    representatives = df.groupby(df.group).sample(1)
-    while len(representatives) < test_size:
-        n_to_go = test_size - len(representatives)
-        not_sampled = df[~df.isin(representatives).all(1)]
-        new_samples = not_sampled.groupby(not_sampled.group).sample(1)
-        if len(new_samples) > n_to_go:
-            new_samples = new_samples.sample(n_to_go)
-        representatives = pd.concat([representatives, new_samples], axis=0)
-
-    xr = representatives.x.values
-    yr = representatives.y.values
-    if x_ndim == 2:
-        xr = xr.reshape(-1, 1)
-    if y_ndim == 2:
-        yr = yr.reshape(-1, 1)
-    return xr, yr
 
 
 def create_parser():
     """Command line parser for the meta-training and meta-testing scripts."""
     import argparse
     my_parser = argparse.ArgumentParser(description='meta-train gp on projection tasks')
-    my_parser.add_argument('-e', '--epochs', type=int, default=0,
-                           help='Number of epochs for meta-train the gp. Use 0 '
+    my_parser.add_argument('--dataset', type=str, default='cmm')
+    my_parser.add_argument('--direction', type=str, default='p2e',
+                           help='p2e (predicted to experimental) or e2p (experimental to predicted)')
+    my_parser.add_argument('--epochs', type=int, default=-1,
+                           help='Number of epochs for meta-train the gp. Use -1 '
                                 'to denote "until convergence"')
-    my_parser.add_argument('-d', '--device', type=str, default='cpu')
-    my_parser.add_argument('-m', '--mean', type=str, default='zero')  # mlp_mean or not
-    my_parser.add_argument('-f', '--feat', action='store_true')  # feature_extraction or not
-    my_parser.add_argument('-k', '--kernel', type=str, default='rbf+linear')
-    my_parser.add_argument('-r', '--results', help='file prefix for the figures/results',
-                           type=str)
-    my_parser.add_argument('-s', '--save_to', type=str, default='.', help='folder where to save the figures/results')
+    my_parser.add_argument('--inner_epochs', type=int, default=10)
+    my_parser.add_argument('--device', type=str, default='cpu')
+    my_parser.add_argument('--mean', type=str, default='zero')  # mlp_mean or not
+    my_parser.add_argument('--kernel', type=str, default='rbf+linear')
+    my_parser.add_argument('--save_to', type=str, default='.', help='folder where to save the figures/results')
+    my_parser.add_argument('--weight_decay', type=float, default=4e-3)
+    my_parser.add_argument('--seed', type=int, default=0)
+
     return my_parser
+
+
+def create_meta_models(args):
+    projector, inner_optimizer = create_projector_and_optimizer(
+        model_type='exact',
+        mean=args.mean,
+        kernel=args.kernel,
+        lr=1e-3,
+        weight_decay=args.weight_decay,
+        device=args.device
+    )
+    metatrainer = create_metatrainer(
+        metatrainer_name='naive',
+        projector=projector,
+        inner_optimizer=inner_optimizer,
+        inner_epochs=args.inner_epochs,
+        outer_epochs=args.epochs,
+        device=args.device
+    )
+    return projector, inner_optimizer, metatrainer
 
 
 def get_basename(args):
     """Use command line arguments to create a basename for the results"""
-    filename = (args.mean + '_fe') if args.feat else args.mean
+    filename = args.direction + "_"
+    filename += args.mean
     filename += ('_' + args.kernel)
+    filename += "_{:.0e}".format(args.weight_decay).replace('-', '')
+    filename += f"_{args.epochs}_{args.inner_epochs}"
     filename = os.path.join(args.save_to, filename)
     return filename
 
@@ -225,27 +87,40 @@ def add_timestamp(filename):
     return filename + f"-{timestamp}"
 
 
+def split_systems_on_train_test(data, direction, x_scaler, y_scaler,
+                                systems=["FEM_long", "LIFE_old", "FEM_orbitrap_plasma", "RIKEN"]):
+    train_data = data[~data.system.isin(systems)]
+    test_data = data[data.system.isin(systems)]
+    train_tasks = ProjectionsTasks(train_data, direction, (1.0, 1.0), min_n=20, x_scaler=x_scaler, y_scaler=y_scaler)
+    if test_data.empty:
+        test_tasks = None
+    else:
+        test_tasks = ProjectionsTasks(test_data, direction, (1.0, 1.0), min_n=20, x_scaler=x_scaler, y_scaler=y_scaler)
+    return train_tasks, test_tasks
+
+
+def load_train_test_tasks(dataset, direction, download_directory, remove_non_retained, test_systems):
+    data, systems, x_scaler, y_scaler = load_predret_with_predictions(dataset, download_directory, remove_non_retained)
+    train_tasks, test_tasks = split_systems_on_train_test(data, direction, x_scaler, y_scaler, test_systems)
+    return train_tasks, test_tasks
+
+
 if __name__ == '__main__':
     # Create the parser
     my_parser = create_parser()
     args = my_parser.parse_args()
     handle_saving_dir(args.save_to)
-    print(args)
 
-    filename = add_timestamp(get_basename(args))
-    train_data, systems, scaler = load_xabier_projections("rt_data", remove_non_retained=True)
-
-    num_mixtures = args.num_mixtures if hasattr(args, 'num_mixtures') else 5
-    gp, mll = meta_train_gp(
-        train_data,
-        use_feature_extraction=args.feat,
-        mean=args.mean,
-        max_epochs=args.epochs,
-        kernel=args.kernel,
-        num_mixtures=num_mixtures,
-        scaler=scaler,
-        device=args.device
+    train_tasks, test_tasks = load_train_test_tasks(
+        args.dataset,
+        args.direction,
+        download_directory="rt_data",
+        remove_non_retained=True,
+        test_systems=['']
     )
-    save_to = filename + '.pth'
-    print(f"Saving model to {save_to}")
-    torch.save(gp, save_to)
+
+    projector, inner_optimizer, metatrainer = create_meta_models(args)
+    projector.prepare_metatraining()
+    metatrainer.metatrain(train_tasks)
+    torch.save(projector.state_dict(), get_basename(args))
+    print('Done meta-training')

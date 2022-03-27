@@ -23,19 +23,30 @@ This script permits the user to specify command line options. Use
 $ python metalearning_test.py --help
 to see the options.
 """
-
+import pickle
 import warnings
+from copy import deepcopy
 
+import gpytorch
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pyro.optim
 import torch
+from sklearn.linear_model import HuberRegressor
+from sklearn.metrics import median_absolute_error, mean_absolute_error
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import RobustScaler, PolynomialFeatures
+from torch.utils.data import DataLoader
+from tqdm import tqdm
 
-from cmmrt.projection.data import load_xabier_projections, Detrender
+from cmmrt.projection.data import get_representatives
 from cmmrt.projection.metalearning_train import (
-    get_representatives, meta_train_gp, create_parser, get_basename, add_timestamp
+    create_parser, get_basename, add_timestamp, create_meta_models
 )
-from cmmrt.utils.train.torchutils import to_torch
+from cmmrt.projection.metalearning_train import load_train_test_tasks
+from cmmrt.projection.models.projector.gp_projector import GPProjector
+from cmmrt.projection.models.utils import create_projector_and_optimizer
 from cmmrt.utils.generic_utils import handle_saving_dir
 
 warnings.simplefilter("ignore")
@@ -43,6 +54,8 @@ warnings.simplefilter("ignore")
 
 def plot_projection(proj_data, support_data):
     """Plot the projections learnt using the support data."""
+    proj_data.sort_values(by=['x'], inplace=True)
+    support_data.sort_values(by=['x'], inplace=True)
     plt.fill_between(
         proj_data.x.values,
         proj_data.lb.values,
@@ -56,141 +69,282 @@ def plot_projection(proj_data, support_data):
     plt.plot(support_data.x.values, support_data.y.values, "rx", mew=2)
 
 
-def meta_test(gp, mll, system_data, scaler, args, n_annotated_samples, support=None):
-    """Evaluates the performance of the meta-trained GP on a given system.
-    
-    :param gp: meta-trained DKLProjector to be used as prior in the projection tasks.
-    :param mll: pytorch.mlls.LeaveOneOutPseudoLikelihood representing the loss function used for meta-training.
-    :param system_data: pandas dataframe containing the data for a specific system to be used for testing.
-    :param scaler: object of class RTTransformer used to scale the RTs.
-    :param args: command line arguments.
-    :param n_annotated_samples: Number of points to use from the system for creating the projection function. These
-    points represent molecules whose identity is known (and hence, whose predicted RTs are known).
-    :param support: tuple (x, y) representing a set of points to be used for creating the projection function. If
-    specified, test_size is ignored.
-    :return: projections (including confidence intervals), data used for creating the projection function, relative errors,
-    loss value.
-    """
-    x = system_data.rt_pred.values.astype('float32')
-    y = system_data.rt_exper.values.astype('float32')
-    x = scaler.transform(x.reshape(-1, 1)).flatten()
-    y = scaler.transform(y.reshape(-1, 1)).flatten()
-    sort_idx = np.argsort(x)
-    x = x[sort_idx]
-    y = y[sort_idx]
-    # Note that x and y are swapped on stratified_train_test_split so that stratification is done based on x
-    if support is None:
-        x_support, y_support = get_representatives(x, y, test_size=n_annotated_samples, n_quantiles=10)
-        x_support = x_support.reshape(-1, 1)
-    else:
-        print('Using Xabier support')
-        x_support, y_support = support
-        x_support = scaler.transform(x_support)
-        y_support = scaler.transform(y_support.reshape(-1, 1)).flatten()
-
-    detrender = Detrender()
-    y_support = detrender.fit_transform(x_support, y_support)
-    y = detrender.transform(y)
-
-    # print(gp.gp.likelihood.noise_covar.noise.item())
-    # print(gp.gp.covar_module)
-    gp.set_train_data(to_torch(x_support, args.device), to_torch(y_support, args.device),
-                      strict=False)
-    gp.eval()
-    mll.eval()
-    with torch.no_grad():
-        preds = gp(to_torch(x.reshape(-1, 1), args.device))
-        loss = -mll(preds, to_torch(y, args.device))
-    mean, var = preds.mean.cpu().numpy(), preds.variance.cpu().numpy()
-
-    y = detrender.inverse_transform(y)
-    y_support = detrender.inverse_transform(y_support)
-    mean = detrender.inverse_transform(mean)
-    var = detrender.inverse_var_transform(var)
-
-    x = scaler.inverse_transform(x.reshape(-1, 1)).flatten()
-    y = scaler.inverse_transform(y.reshape(-1, 1)).flatten()
-    x_support = scaler.inverse_transform(x_support.reshape(-1, 1)).flatten()
-    y_support = scaler.inverse_transform(y_support.reshape(-1, 1)).flatten()
-    new_mean, median, lb, ub = scaler.inverse_ci(mean, var)
-
-    all_data = pd.DataFrame({
-        'x': x,
-        'y': y,
-        'mean': new_mean,
-        'med': median,
-        'lb': lb,
-        'ub': ub
-    })
-    support_data = pd.DataFrame({
-        'x': x_support,
-        'y': y_support,
-    })
-
-    relative_errors = (
-        np.abs(all_data.y.values.flatten() - all_data[['mean']].values.flatten()) / all_data.y.values.flatten()
-    )
-
-    return all_data, support_data, relative_errors, loss
+def get_test_basename(args):
+    filename = get_basename(args)
+    filename = filename + "_" + str(args.finetuning_epochs)
+    return filename
 
 
 def get_test_filename(args, n_annotated_samples, system, timestamp):
     """Get a filename to be used to store testing results based on the command line arguments and the system name."""
-    filename = get_basename(args)
+    filename = get_test_basename(args)
     return filename + '-' + str(n_annotated_samples) + '-' + system + '-' + timestamp
+
+
+def create_test_parser():
+    my_parser = create_parser()
+    my_parser.add_argument('-t', '--n_annotated', type=int, default=0,
+                           help='Number of samples to use for creating the projection function.')
+    my_parser.add_argument('-n', '--n_repeats', type=int, default=10,
+                           help='Number of repetions to use for evaluation.')
+    my_parser.add_argument('--finetuning_epochs', type=int, default=250)
+    my_parser.add_argument('--checkpoint', type=str, default=None)
+    my_parser.add_argument('--test_systems', nargs="+", type=str,
+                           default=["FEM_long", "LIFE_old", "FEM_orbitrap_plasma", "RIKEN"])
+    args = my_parser.parse_args()
+    handle_saving_dir(args.save_to)
+    if args.n_annotated == 0:
+        args.n_annotated = np.array([10, 20, 25, 30, 40, 50])
+    return args
+
+
+def metatest(test_tasks, weights_before, model_optimizer_factory, args, finetuning_epochs=10,
+             save_partial_results=True, do_plots=True):
+    """" we use a factory since pyro has trouble reseting the param store"""
+    tasks_dl = DataLoader(test_tasks, batch_size=1, shuffle=False)
+    if isinstance(args.n_annotated, int):
+        args.n_annotated = [args.n_annotated]
+    all_results = []
+
+    def create_seed_generator():
+        # print("------------------ New generator ----------------------------")
+        np.random.seed(args.seed)
+        M = np.iinfo(np.int32).max
+        while True:
+            seed = np.random.randint(M, size=1)[0]
+            # print(seed, end=', ')
+            yield seed
+
+    for x, y, system in tasks_dl:
+        system = system[0]
+        # get rid of the batch dimension
+        x = x.squeeze(0)
+        y = y.squeeze(0)
+        for n_annotated_samples in args.n_annotated:
+            # Create a random seed generator starting from the same seed, so that different runs always use
+            # the same training points for comparison.
+            seed_generator = create_seed_generator()
+            print('==============================================')
+            print('====== system: {}, n_annotated: {} ======'.format(system, n_annotated_samples))
+            print('==============================================')
+            for repeat_number in range(args.n_repeats):
+                timestamp = add_timestamp('')[1:]
+                x_support, y_support, x_test, y_test = get_representatives(
+                    x, y, test_size=n_annotated_samples, n_quantiles=10,
+                    random_state_generator=seed_generator,
+                    return_complement=True
+                )
+
+                x_support, y_support = torch.from_numpy(x_support).float(), torch.from_numpy(y_support).float()
+                x_test, y_test = torch.from_numpy(x_test).float(), torch.from_numpy(y_test).float()
+                if args.device == 'cuda':
+                    x = x.cuda()
+                    y = y.cuda()
+                    x_support = x_support.cuda()
+                    y_support = y_support.cuda()
+                    x_test = x_test.cuda()
+                    y_test = y_test.cuda()
+
+                projector, _ = model_optimizer_factory()
+                assert isinstance(projector, GPProjector), "Currently only GPProjector is supported"
+                projector.load_state_dict(weights_before)
+                projector.set_train_data(x_support, y_support, strict=False)
+                projector.prepare_metatesting()
+
+                inner_optimizer = torch.optim.Adam(projector.parameters(), lr=0.01)
+                iteration_bar = tqdm(range(finetuning_epochs))
+                projector.train()
+                for _ in iteration_bar:
+                    loss = projector.train_step(x_support, y_support, inner_optimizer)
+                    if isinstance(loss, torch.Tensor):
+                        loss = loss.item()
+                    iteration_bar.set_postfix(finetuning_loss=loss)
+
+                projector.eval()
+                mll = gpytorch.mlls.ExactMarginalLogLikelihood(projector.likelihood, projector.gp)
+                projector.eval()
+                with torch.no_grad():
+                    mll_value = mll(projector(x_test), y_test).item()
+
+                with torch.no_grad():
+                    int_dist = projector(x)
+                    pred_dist = projector.likelihood(int_dist)
+                mean, var = int_dist.mean.cpu().numpy(), int_dist.variance.cpu().numpy()
+                mean_pred, var_pred = pred_dist.mean.cpu().numpy(), pred_dist.variance.cpu().numpy()
+
+                with torch.no_grad():
+                    int_dist_test = projector(x_test)
+                    pred_dist_test = projector.likelihood(int_dist_test)
+                mean_test, var_test = int_dist_test.mean.cpu().numpy(), int_dist_test.variance.cpu().numpy()
+                mean_pred_test, var_pred_test = pred_dist_test.mean.cpu().numpy(), pred_dist_test.variance.cpu().numpy()
+
+                x_, y_ = x.cpu().numpy(), y.cpu().numpy()
+                x_support_, y_support_ = x_support.cpu().numpy(), y_support.cpu().numpy()
+                x_test_, y_test_ = x_test.cpu().numpy(), y_test.cpu().numpy()
+
+                x_, y_ = test_tasks.inverse_transform(x_, y_)
+                x_support_, y_support_ = test_tasks.inverse_transform(x_support_, y_support_)
+                x_test_, y_test_ = test_tasks.inverse_transform(x_test_, y_test_)
+                new_mean, median, lb, ub = test_tasks.inverse_ci(mean, var)
+                pred_mean, pred_median, pred_lb, pred_ub = test_tasks.inverse_ci(mean_pred, var_pred)
+                new_mean_test, median_test, lb_test, ub_test = test_tasks.inverse_ci(mean_test, var_test)
+                pred_mean_test, pred_median_test, pred_lb_test, pred_ub_test = test_tasks.inverse_ci(mean_pred_test,
+                                                                                                     var_pred_test)
+
+                all_data, support_data, non_support_data = pack_data(
+                    x_support_, y_support_, x_test_, y_test_, x_, y_,
+                    new_mean, median, lb, ub,
+                    pred_mean, pred_median, pred_lb, pred_ub,
+                    new_mean_test, median_test, lb_test, ub_test,
+                    pred_mean_test, pred_median_test, pred_lb_test, pred_ub_test
+                )
+
+                metrics = evaluate_performance(all_data, support_data, non_support_data, mll_value)
+                metrics = add_metadata(metrics, system, n_annotated_samples, repeat_number, timestamp, args)
+                all_results.append(metrics)
+
+                log_results(support_data, non_support_data, all_data, system, n_annotated_samples,
+                            timestamp, args, save_partial_results, do_plots)
+    print('done!')
+    return pd.DataFrame(all_results)
+
+
+def log_results(support_data, non_support_data, all_data, system, n_annotated_samples, timestamp, args,
+                save_partial_results, do_plots):
+    results_filename = get_test_filename(args, n_annotated_samples, system, timestamp)
+    if save_partial_results:
+        all_data.to_csv(results_filename + '.csv')
+        support_data.to_csv(results_filename + '_support.csv')
+        non_support_data.to_csv(results_filename + '_nonsupport.csv')
+    if do_plots:
+        f = plt.figure(figsize=(16, 9))
+        plot_projection(all_data, support_data)
+        plt.title(system)
+        f.savefig(results_filename + '.png', bbox_inches='tight')
+
+
+def add_metadata(metrics, system, n_annotated_samples, repeat_number, timestamp, args):
+    metrics['system'] = system
+    metrics['mean'] = args.mean
+    metrics['kernel'] = args.kernel
+    metrics['n_annotated'] = n_annotated_samples
+    metrics['system'] = system
+    metrics['repetition'] = repeat_number
+    metrics['timestamp'] = timestamp
+    return metrics
+
+
+def evaluate_performance(all_data, support_data, non_support_data, mll_value):
+    # errors without support
+    # non_support_data = all_data.merge(support_data, how='outer', indicator=True, on=['x', 'y'])
+    # non_support_data = non_support_data[non_support_data._merge != "both"]
+
+    def robust_pol_medae(x_support, y_support, x, y):
+        pm = make_pipeline(RobustScaler(), PolynomialFeatures(4), HuberRegressor())
+        pm.fit(x_support, y_support)
+        predictions = pm.predict(x)
+        return median_absolute_error(y, predictions)
+
+    def relative_error(y, y_pred):
+        return np.median(np.abs(y - y_pred) / y)
+
+    y = non_support_data[['y']].values.flatten()
+    mean = non_support_data[['mean']].values.flatten()
+    median = non_support_data[['med']].values.flatten()
+
+    medae_value = median_absolute_error(y, mean)
+    metrics = {
+        'mae': mean_absolute_error(y, mean),
+        'medae': medae_value,
+        'mae_med': mean_absolute_error(y, median),
+        'medae_med': median_absolute_error(y, median),
+        'relative_error': relative_error(y, mean),
+        'comp_medae': medae_value / robust_pol_medae(support_data[['x']].values,
+                                                     support_data[['y']].values.flatten(),
+                                                     non_support_data[['x']].values,
+                                                     non_support_data[['y']].values.flatten()),
+        'mll': mll_value
+    }
+    return metrics
+
+
+def pack_data(x_support, y_support, x_non_support, y_non_support, x, y, new_mean, median, lb, ub, pred_mean,
+              pred_median, pred_lb, pred_ub,
+              new_mean_test, median_test, lb_test, ub_test,
+              pred_mean_test, pred_median_test, pred_lb_test, pred_ub_test,
+              ):
+    all_data = pd.DataFrame({
+        'x': x.flatten(),
+        'y': y,
+        'mean': new_mean,
+        'med': median,
+        'lb': lb,
+        'ub': ub,
+        'pred_mean': pred_mean,
+        'pred_med': pred_median,
+        'pred_lb': pred_lb,
+        'pred_ub': pred_ub
+    })
+    support_data = pd.DataFrame({
+        'x': x_support.flatten(),
+        'y': y_support,
+    })
+    non_support_data = pd.DataFrame({
+        'x': x_non_support.flatten(),
+        'y': y_non_support,
+        'mean': new_mean_test,
+        'med': median_test,
+        'lb': lb_test,
+        'ub': ub_test,
+        'pred_mean': pred_mean_test,
+        'pred_med': pred_median_test,
+        'pred_lb': pred_lb_test,
+        'pred_ub': pred_ub_test
+    })
+
+    return all_data, support_data, non_support_data
 
 
 if __name__ == '__main__':
     # Create the parser
-    my_parser = create_parser()
-    my_parser.add_argument('-t', '--n_annotated', type=int, default=0,
-                           help='Number of samples to use for creating the projection function.')
-    args = my_parser.parse_args()
-    handle_saving_dir(args.save_to)
-    print(args)
+    args = create_test_parser()
 
-    if args.n_annotated == 0:
-        args.n_annotated = np.array([10, 20, 25, 30, 40, 50])
+    rng = np.random.RandomState(args.seed)
+    torch.manual_seed(args.seed)
 
-    dat, _, scaler = load_xabier_projections("rt_data", remove_non_retained=True)
+    train_tasks, test_tasks = load_train_test_tasks(
+        args.dataset,
+        args.direction,
+        download_directory="rt_data",
+        remove_non_retained=True,
+        test_systems=args.test_systems
+    )
 
-    systems = ["FEM_long", "LIFE_old", "FEM_orbitrap_plasma", "RIKEN"]
-    xabier_cuttoffs = [5, 1, 2, 1]
+    projector, inner_optimizer, metatrainer = create_meta_models(args)
 
-    timestamp = add_timestamp('')[1:]  # A fixed timestamp for all tests. [1:] removes the starting "-"
-    for exclude_system, cuttoff in zip(systems, xabier_cuttoffs):
-        print(f"********** Testing on {exclude_system} **********")
-        train_data = dat[dat.system != exclude_system]
-        system_data = dat[(dat.system == exclude_system) & (dat.rt_exper > cuttoff)].copy()
+    if args.checkpoint is not None:
+        print('Loading meta-training session from {}'.format(get_test_basename(args)))
+        projector.load_state_dict(torch.load(args.checkpoint))
+    else:
+        projector.prepare_metatraining()
+        metatrainer.metatrain(train_tasks)
+        print('Done metatraining. Saving to {}'.format(get_test_basename(args)))
+        torch.save(projector.state_dict(), get_test_basename(args))
 
-        num_mixtures = args.num_mixtures if hasattr(args, 'num_mixtures') else 5
-        gp, mll = meta_train_gp(
-            train_data,
-            use_feature_extraction=args.feat,
+
+    def model_optimizer_factory():
+        return create_projector_and_optimizer(
+            model_type='exact',
             mean=args.mean,
-            max_epochs=args.epochs,
             kernel=args.kernel,
-            num_mixtures=num_mixtures,
-            scaler=scaler,
+            lr=1e-3,
+            weight_decay=args.weight_decay,
             device=args.device
         )
 
-        for n_annotated_samples in args.n_annotated:
-            results_filename = get_test_filename(args, n_annotated_samples, exclude_system, timestamp)
-            support = None
-            # if n_annotated_samples == 50:
-            #     support = system_data[system_data.support]
-            #     assert support.shape[0] == 50, 'Wait a minute, something is wrong!'
-            #     support = (support.rt_pred.values.reshape(-1, 1), support.rt_exper.values)
 
-            all_data, support_data, relative_errors, loss = meta_test(
-                gp, mll, system_data, scaler, args, n_annotated_samples, support=support
-            )
-
-            all_data.to_csv(results_filename + '.csv')
-            support_data.to_csv(results_filename + '_support.csv')
-
-            f = plt.figure(figsize=(16, 9))
-            plot_projection(all_data, support_data)
-            plt.title(exclude_system)
-            f.savefig(results_filename + '.png', bbox_inches='tight')
+    weights_before = deepcopy(projector.state_dict())  # save snapshot before evaluation
+    results = metatest(test_tasks, weights_before, model_optimizer_factory, deepcopy(args),
+                       finetuning_epochs=args.finetuning_epochs)
+    print(results)
+    results.to_csv(get_test_basename(args) + '_metaeval_summary.csv')

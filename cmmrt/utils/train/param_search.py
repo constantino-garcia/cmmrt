@@ -216,7 +216,7 @@ def _(estimator: Blender, X, y, cv, study, n_trials, keep_going=False):
             continue
         else:
             model = clone(model)
-            study = _create_study(model_name, study_prefix, storage)
+            study = create_study(model_name, study_prefix, storage)
             models_with_studies.append((model_name, model, study))
             _ = param_search(model, X_train, y_train, cv,
                              study, n_trials, keep_going=keep_going)
@@ -242,7 +242,7 @@ def _(estimator: Blender, X, y, cv, study, n_trials, keep_going=False):
         'y': y_test
     }
     final_estimator = clone(estimator.final_estimator)
-    study = _create_study(final_estimator_study_name(final_estimator), study_prefix, storage)
+    study = create_study(final_estimator_study_name(final_estimator), study_prefix, storage)
 
     _ = param_search(final_estimator, blended_dataset['X'], blended_dataset['y'],
                      cv, study, n_trials, keep_going=False)
@@ -250,7 +250,7 @@ def _(estimator: Blender, X, y, cv, study, n_trials, keep_going=False):
     return estimator
 
 
-def _create_study(model_name, study_prefix, storage):
+def create_study(model_name, study_prefix, storage):
     return optuna.create_study(
         study_name=f'{study_prefix}-{model_name}',
         direction='minimize' if model_name == 'lgb' else 'maximize',
@@ -286,11 +286,11 @@ def _(estimator: Blender, study):
     # Again (see param_search), for the blender the study is expected to consist of a duple (storage, study_prefix)
     storage, study_prefix = study
     estimator.estimators = [
-        (n, set_best_params(clone(model), _create_study(n, study_prefix, storage))) for (n, model) in estimator.estimators
+        (n, set_best_params(clone(model), create_study(n, study_prefix, storage))) for (n, model) in estimator.estimators
     ]
     estimator.final_estimator = set_best_params(
         clone(estimator.final_estimator),
-        _create_study(final_estimator_study_name(estimator.final_estimator), study_prefix, storage)
+        create_study(final_estimator_study_name(estimator.final_estimator), study_prefix, storage)
     )
     return estimator
 
