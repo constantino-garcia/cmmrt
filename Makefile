@@ -31,9 +31,9 @@ uninstall:
 
 ## Delete all results/* and compiled Python files
 clean:
-	rm -rf results/rt/*
-	rm -rf results/projection/*
-	rm -rf results/optuna/* 
+	#rm -rf results/rt/*
+	#rm -rf results/projection/*
+	#rm -rf results/optuna/* 
 	find . -type f -name "*.py[co]" -delete
 	find . -type d -name "__pycache__" -delete
 
@@ -77,21 +77,21 @@ test_predictor:
 ## Meta-train a GP for projections using all data from PredRet database
 train_projections: 
 	$(PYTHON_INTERPRETER) cmmrt/projection/metalearning_train.py -s saved_models \
-		-e 10 # FIXME: remove this line for complete training (or set epochs to 0 to train until convergence)
+		--mean constant --kernel poly\
+		--save_to results\projection\
+		--epochs 10 # FIXME: remove this line for complete training (or set epochs to -1 to train until convergence)
 
 ## Test the performance of meta-training for projections using 4 reference CMs
 test_projections:
 	$(PYTHON_INTERPRETER) cmmrt/projection/metalearning_test.py \
-	-s results/projection/models_to_rank_with
+	--mean constant --kernel poly\ 
+	--save_to results\projection\
+	--epochs 10 # FIXME: remove this line for complete training (or set epochs to -1 to train until convergence)
 
 train_dnn:
 	$(PYTHON_INTERPRETER) cmmrt/rt/train_dnn_model.py \
 		--storage sqlite:///results/optuna/dnn.db --save_to saved_models \
 		--smoke_test # FIXME: remove this line for complete training
-
-rank_candidates:
-	$(PYTHON_INTERPRETER) cmmrt/projection/rank_candidates.py 
-
 
 
 #################################################################################

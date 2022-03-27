@@ -87,7 +87,7 @@ def create_test_parser():
                            help='Number of samples to use for creating the projection function.')
     my_parser.add_argument('-n', '--n_repeats', type=int, default=10,
                            help='Number of repetions to use for evaluation.')
-    my_parser.add_argument('--finetuning_epochs', type=int, default=250)
+    my_parser.add_argument('--finetuning_epochs', type=int, default=500)
     my_parser.add_argument('--checkpoint', type=str, default=None)
     my_parser.add_argument('--test_systems', nargs="+", type=str,
                            default=["FEM_long", "LIFE_old", "FEM_orbitrap_plasma", "RIKEN"])
