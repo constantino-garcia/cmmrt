@@ -226,9 +226,6 @@ def _(estimator: Blender, X, y, cv, study, n_trials, keep_going=False):
         (n, set_best_params(clone(model), study)) for n, model, study in models_with_studies
     ]
 
-    # FIXME: remove next line
-    return estimator
-
     # Train with best parameters and predict to create the dataset for the blender
     blended_X = []
     fitted_estimators = []
@@ -290,7 +287,8 @@ def _(estimator: Blender, study):
     # Again (see param_search), for the blender the study is expected to consist of a duple (storage, study_prefix)
     storage, study_prefix = study
     estimator.estimators = [
-        (n, set_best_params(clone(model), _create_study(n, study_prefix, storage))) for (n, model) in estimator.estimators
+        (n, set_best_params(clone(model), _create_study(n, study_prefix, storage))) for (n, model) in
+        estimator.estimators
     ]
     estimator.final_estimator = set_best_params(
         clone(estimator.final_estimator),
