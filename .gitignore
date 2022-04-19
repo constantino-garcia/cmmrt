@@ -95,3 +95,4 @@ rt_data/
 cmmrt/rt/models/catboost_info/
 **/*.pth
 results
+saved_models/
