@@ -22,8 +22,8 @@ def _load_predret_from_url(filename, url, download_directory, rt_scale, min_poin
         gdown.download(url, filename)
     dat = pd.read_csv(filename)
     if renaming_dict is not None:
-        dat = dat[['system', 'rt', 'model_prediction']].rename(
-            columns={'rt': 'rt_exper', 'model_prediction': 'rt_pred'}
+        dat = dat[['pubchem', 'system', 'rt', 'model_prediction']].rename(
+            columns=renaming_dict
         )
     dat.rt_pred = dat.rt_pred / rt_scale
     if remove_non_retained:
@@ -58,7 +58,7 @@ def _load_predret_with_xabier_predictions(download_directory="rt_data", min_poin
         rt_scale=600,
         min_points=min_points,
         remove_non_retained=remove_non_retained,
-        renaming_dict={'rt': 'rt_exper', 'model_prediction': 'rt_pred'}
+        renaming_dict={'pubchem': 'Pubchem', 'rt': 'rt_exper', 'model_prediction': 'rt_pred'}
     )
 
 
