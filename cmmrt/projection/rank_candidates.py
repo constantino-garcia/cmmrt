@@ -31,8 +31,8 @@ def get_ppm_error(mass, ppm_error=10):
     return (round(mass) * ppm_error) / 10 ** 6
 
 
-def rank_projections(system, cuttoff, kegg_predret, kegg_to_rank, path,
-                     n_annotations, n_groups=10, do_plot=False):
+def rank_projections(system, cuttoff, kegg_predret, kegg_to_rank,
+                     n_annotations, n_groups=10, do_plot=False, mass_error_seed=0):
     system_data = kegg_predret[(kegg_predret.System == system) & (kegg_predret.rt > cuttoff)]
     system_data = system_data.astype({'model_prediction': 'float32', 'rt': 'float32'}, copy=False)
     test = copy.deepcopy(kegg_to_rank)
@@ -52,25 +52,27 @@ def rank_projections(system, cuttoff, kegg_predret, kegg_to_rank, path,
     projector.fit(x, y)
     mass_filtering_results = []
     in_top_results = []
+    # Set seed for random mass errors
+    if mass_error_seed is not None:
+        np.random.seed(mass_error_seed)
     for index, row in system_data.iterrows():
         # Skip if the compound is not in the test set (since it wouldn't have a chance to be in the top results)
         if not row.Pubchem in test.Pubchem.values:
             continue
         error = get_ppm_error(row.mmass)
-        candidates = test[(test["mmass"] >= (row.mmass - error)) & (test["mmass"] <= (row.mmass + error))].copy()
+        # (error / 3) to ensure that 99.7% of experimental mass is within +/- 10 ppm
+        experimental_mass = row.mmass + (error / 3) * np.random.randn()
+        # Clip the values to ensure that the true molecule is between candidates after mass search.
+        experimental_mass = np.clip(experimental_mass, row.mmass - error, row.mmass + error)
+        search_window = get_ppm_error(experimental_mass)
+        candidates = test[
+            (test["mmass"] >= (experimental_mass - search_window))
+            & (test["mmass"] <= (experimental_mass + search_window))
+            ].copy()
 
         # print(row.Pubchem, "has ", candidates.shape[0], " candidates")
         if candidates.shape[0] > 3:
             candidates['z_score'] = pd.NA
-            # simulate experimental error by adding noise to row.mmas
-            error = get_ppm_error(row.mmass)
-            # (error / 3) to ensure that 99.7% of experimental mass is within +/- 10 ppm
-            experimental_mass = row.mmass + (error / 3) * np.random.randn()
-            # Clip the values to ensure that the true molecule is between candidates after mass search.
-            if experimental_mass < row.mmass - error:
-                experimental_mass = row.mmass - error
-            elif experimental_mass > row.mmass + error:
-                experimental_mass = row.mmass + error
             candidates['mass_error'] = abs(candidates.mmass - experimental_mass)
             # add small noise to unbreak ties
             candidates['mass_error'] = candidates['mass_error'] + np.random.uniform(0, 1e-6, candidates.shape[0])
@@ -128,7 +130,7 @@ def load_kegg_experiment_data():
 
 
 if __name__ == "__main__":
-    path = PATH
+    np.random.seed(124245)
     n_annotations_list = [10, 20, 30, 40, 50]
 
     n_repeats = 10
@@ -139,13 +141,15 @@ if __name__ == "__main__":
     in_top_df_list = []
     in_top_df_mass_filtering_list = []
     systems = [("FEM_long", 5), ("LIFE_old", 1), ("FEM_orbitrap_plasma", 2), ("RIKEN", 1)]
+    mass_error_seeds = np.random.randint(0, 10000000, size=n_repeats)
     for system, cuttoff in systems:
         for n_annotations in n_annotations_list:
             for n_rep in tqdm(range(n_repeats)):
                 # do_plot = (n_annotations == 50) and (n_rep == 0)
                 do_plot = False
                 in_top_df, in_top_df_mass_filtering = rank_projections(system, cuttoff, kegg_predret, kegg_to_rank,
-                                                                       path, n_annotations, n_groups, do_plot=do_plot)
+                                                                       n_annotations, n_groups, do_plot=do_plot,
+                                                                       mass_error_seed=mass_error_seeds[n_rep])
 
 
                 def summarise_in_top(df):
@@ -160,10 +164,10 @@ if __name__ == "__main__":
                 in_top_df_mass_filtering_list.append(summarise_in_top(in_top_df_mass_filtering))
 
     rank_projections_df = pd.concat(in_top_df_list)
-    rank_projections_df.to_csv(os.path.join(path, "rankings.csv"))
+    rank_projections_df.to_csv(os.path.join(PATH, "rankings.csv"))
 
     rank_projections_mass_filtering_df = pd.concat(in_top_df_mass_filtering_list)
-    rank_projections_mass_filtering_df.to_csv(os.path.join(path, "rankings_mass_filtering_only.csv"))
+    rank_projections_mass_filtering_df.to_csv(os.path.join(PATH, "rankings_mass_filtering_only.csv"))
 
     print(rank_projections_df.groupby(["excluded_system", "n_annotations"]).mean())
     print(rank_projections_df.drop(["repetition_nb"], axis=1).
