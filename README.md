@@ -3,8 +3,7 @@ This code implements methods for the accurate prediction of Retention Times
 (RTs) for a given Chromatographic Method (CM) using machine learning, as 
 described in:
 
-> García, C.A., Gil-de-la-Fuente A., Domingo-Almenara X., Barbas C., Otero, A. **Evaluation of machine learning techniques for
-small molecule retention time prediction** *(Under review)*.
+> García, C.A., Gil-de-la-Fuente A., Domingo-Almenara X., Barbas C., Otero, A. **Probabilistic metabolite annotation using retention time prediction and meta-learned projections** (Under review).
 
 Highlights: 
 * We have trained state-of-the-art machine learning regressors using the 80,038 
