@@ -8,12 +8,9 @@ from cmmrt.projection.models.projector.gp_projector import GPProjector
 def create_projector_and_optimizer(model_type, mean, kernel,
                                    lr, weight_decay, device):
     if model_type == 'exact':
-        projector = GPProjector(mean, kernel)
+        projector = GPProjector(mean, kernel, device)
     else:
         raise ValueError("Unknown model type. Currently only exact projectors are supported.")
-
-    if device == 'cuda':
-        projector = projector.cuda()
 
     if weight_decay > 0:
         unregularized = []
