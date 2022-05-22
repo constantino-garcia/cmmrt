@@ -5,6 +5,8 @@ described in:
 
 > García, C.A., Gil-de-la-Fuente A., Domingo-Almenara X., Barbas C., Otero, A. **Probabilistic metabolite annotation using retention time prediction and meta-learned projections** (Under review).
 
+
+
 Highlights: 
 * We have trained state-of-the-art machine learning regressors using the 80,038 
 experimental RTs from the METLIN small molecule dataset (SMRT); both retained 
@@ -19,6 +21,12 @@ mean and median absolute errors of 39.2±1.2 s and 17.2 ± 0.9 s, respectively.
 * A novel Bayesian meta-learning approach is proposed for RT projection between
  CMs from as few as 10 molecules while still obtaining competitive error rates 
  compared with previous approaches.
+* We illustrate how the proposed DNN+meta-learned projections can be integrated into a 
+metabolite annotation workflow. Indeed, we plan to integrate such approach into [CEU Mass Mediator](http://ceumass.eps.uspceu.es/).
+ 
+Note that, to integrate the proposal into the CEU Mass Mediator platform, the code in this 
+repository will continue to be developed. Hence, branch `paper` should be used as reference 
+for reproducing the results of the paper. 
 
 ## Notebooks 
 Notebooks illustrating several aspects of the tool are available under the `notebooks` folder:
