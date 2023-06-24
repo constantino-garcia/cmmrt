@@ -21,6 +21,9 @@
               Copyright and license notices must be preserved. Contributors provide an express grant of patent rights.
 """
 
+import urllib.request,urllib.error, json 
+import time
+import os
 from alvadesccliwrapper.alvadesc import AlvaDesc
 
 NUMBER_FPVALUES = 2214
@@ -28,6 +31,173 @@ NUMBER_DESCRIPTORS = 5666
 #ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
 ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
 outputPath = 'resources/'
+
+def is_a_lipid_from_classyfire(inchi_key):
+    """ 
+        check if the inchi key is a lipid according to classyfire classification
+
+        Syntax
+        ------
+          boolean = is_a_lipid_from_classyfire(inchi_key)
+
+        Parameters
+        ----------
+            [in] inchi_key: string with the inchi key of a compound
+
+        Returns
+        -------
+          boolean stating wether this inchi key is a lipid according to classyifire classification
+
+        Exceptions
+        ----------
+          None
+
+        Example
+        -------
+          >>> is_a_lipid_from_classyfire = is_a_lipid_from_classyfire("RDHQFKQIGNGIED-UHFFFAOYSA-N")
+    """
+
+    # http://classyfire.wishartlab.com/entities/BSYNRYMUTXBXSQ-UHFFFAOYSA-N.json
+    url_classyfire="http://classyfire.wishartlab.com/entities/" + inchi_key + ".json"
+    while True:
+        try:
+            with urllib.request.urlopen(url_classyfire) as jsonclassyfire:
+                data = json.load(jsonclassyfire)
+                superclass = data["superclass"]["name"]
+                if(superclass == "Lipids and lipid-like molecules"):
+                    return True
+                else:
+                    return False
+                #print(data)
+        except urllib.error.HTTPError as e:
+            raise e
+        except Exception as e:
+            print("Connection error")
+            print(e)
+            time.sleep(5)
+
+
+def is_in_lipidMaps(inchi_key):
+    """ 
+        check if the inchi key is present in lipidmaps
+
+        Syntax
+        ------
+          boolean = is_in_lipidMaps(inchi_key)
+
+        Parameters
+        ----------
+            [in] inchi_key: string with the inchi key of a compound
+
+        Returns
+        -------
+          boolean stating wether the inchi key is present in lipidmaps or not
+
+        Exceptions
+        ----------
+          None
+
+        Example
+        -------
+          >>> is_in_lipidMaps = is_in_lipidMaps("RDHQFKQIGNGIED-UHFFFAOYSA-N")
+    """
+    try:
+        inchi_key = get_inchi_key_from_pubchem(pc_id)
+        lm_id = get_lm_id_from_inchi_key(inchi_key)
+        return True
+    except Exception as e:
+        return False
+
+def get_inchi_key_from_pubchem(pc_id):
+    """ 
+        Get inchi key from the pubchem identifier 
+
+        Syntax
+        ------
+          str = get_inchi_key_from_pubchem(pc_id)
+
+        Parameters
+        ----------
+            [in] pc_id: PC_ID integer corresponding to the pubchem identifier
+
+        Returns
+        -------
+          str containing the inchi key
+
+        Exceptions
+        ----------
+          Exception:
+            If the pubchem identifier is not present in pubchem database
+
+        Example
+        -------
+          >>> inchi_key = get_inchi_key_from_pubchem(1)
+    """
+    url_pubchem="https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/" + str(pc_id) + "/property/InChIKey/JSON"
+    while True:
+        try:
+            with urllib.request.urlopen(url_pubchem) as jsonpubchem:
+                data = json.load(jsonpubchem)
+                data_compound = data["PropertyTable"]["Properties"][0]
+                #print(data)
+                try:
+                    if 'InChIKey' not in data_compound:
+                        inchikey = "null"
+                        raise Exception('INCHI KEY NOT FOUND')
+                    else:
+                        inchikey = data_compound["InChIKey"]
+                        return inchikey
+                except Exception as e:
+                    raise Exception('INCHI KEY NOT FOUND' + url_pubchem)
+        except urllib.error.HTTPError as e:
+            raise Exception('HTTP NOT FOUND: ' + url_pubchem)
+        except Exception as e:
+            print("Connection error")
+            print(e)
+            time.sleep(5)
+
+def get_lm_id_from_inchi_key(inchi_key):
+    """ 
+        Get lm_id from inchi key
+
+        Syntax
+        ------
+          str = get_lm_id_from_inchi_key(inchi_key)
+
+        Parameters
+        ----------
+            [in] inchi_key: string with the inchi key of a compound
+
+        Returns
+        -------
+          str containing the lm id
+
+        Exceptions
+        ----------
+          Exception:
+            If the inchi key is not in the lipid maps database
+
+        Example
+        -------
+          >>> lm_id = get_lm_id_from_inchi_key("RDHQFKQIGNGIED-UHFFFAOYSA-N")
+    """
+    url_lipidmaps="https://www.lipidmaps.org/rest/compound/inchi_key/" + inchi_key + "/all"
+    while True:
+        try:
+            with urllib.request.urlopen(url_lipidmaps) as jsonLipidMaps:
+                data = json.load(jsonLipidMaps)
+                
+                if 'lm_id' not in data:
+                    raise Exception('LM ID from INCHI KEY ' + inchi_key + ' NOT FOUND')
+                else:
+                    lm_id = data["lm_id"]
+                    return lm_id
+                
+        except urllib.error.HTTPError as e:
+            raise Exception('HTTP NOT FOUND: ' + url_lipidmaps)
+            print("Connection error")
+            print(e)
+            time.sleep(5)
 
 
 def list_of_ints_from_str(big_int_str):
@@ -259,8 +429,6 @@ def generate_vector_fingerprints(aDesc, chemicalStructureFile = None, smiles = N
 
     ECFP_ints_list = list_of_ints_from_str(ECFP_fingerprint)
     fingerprints = ECFP_ints_list
-    print(smiles)
-    print(fingerprints)
     
     MACCSFP_ints_list = list_of_ints_from_str(MACCSFP_fingerprint)
     fingerprints.extend(MACCSFP_ints_list)
@@ -487,7 +655,7 @@ def main():
         print("Test PASS. The CSV Vector from fingerprints has been correctly implemented.")
     else:
         print("Test FAIL. Check the method generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep)." + " RESULT: " + str(actualResult))
-    '''
+    
     print("=================================================================.")
     print("Test Case 7: Fingerprints of SMILES")
     print("=================================================================.")
@@ -495,7 +663,7 @@ def main():
     
     actualResult = generate_vector_fingerprints(aDesc, smiles = 'CC(C)=CCC/C(/C)=C\\C=O')
     
-    '''
+    
     if expResult == actualResult:
         print("Test PASS. The CSV Vector from fingerprints has been correctly implemented.")
     else:
@@ -546,8 +714,74 @@ def main():
         print("Test FAIL. Check the method check_fingerprint_type(fingerprintType). It should not accept any other value than PFP, ECFP and MACCSFP" + e)
     except Exception as e:
         print("Test PASS Checking fingerpints types. ")
+    
+    print("=================================================================.")
+    print("Test Case 12: Checking INCHI KEY from Pubchem ID ")
+    print("=================================================================.")
+    try: 
+        inchi_key = get_inchi_key_from_pubchem(1)
+        if inchi_key == "RDHQFKQIGNGIED-UHFFFAOYSA-N":
+            print("Test PASS Checking inchi key from pubchem ")
+        else: 
+            print("Test FAIL. Check the INCHI KEY of pubchem 1" + e)
+    except Exception as e:
+        print("est FAIL. Check the call to pubchem API" + e)
+    try: 
+        inchi_key = get_inchi_key_from_pubchem("asd")
+        print("Test FAIL. Check the method get_inchi_key_from_pubchem(inchi_key)")
+    except Exception as e:
+        print("Test PASS Checking wrong inchi keys. ")
+    
+    print("=================================================================.")
+    print("Test Case 13: Checking LM_ID from INCHI KEY")
+    print("=================================================================.")
+    try: 
+        lm_id = get_lm_id_from_inchi_key("RDHQFKQIGNGIED-UHFFFAOYSA-N")
+        if lm_id == "LMFA07070060":
+            print("Test PASS Checking fingerpints types. ")
+        else: 
+            print("Test FAIL. Check the LM ID of inchi key RDHQFKQIGNGIED-UHFFFAOYSA-N" + e)
+    except Exception as e:
+        print("Test FAIL. Check the LM ID of inchi key RDHQFKQIGNGIED-UHFFFAOYSA-N" + e)
+    try: 
+        inchi_key = get_lm_id_from_inchi_key("asd")
+        print("Test FAIL. Check the LM ID of inchi key RDHQFKQIGNGIED-UHFFFAOYSA-N" + e)
+    except Exception as e:
+        print("Test PASS Checking wrong inchi keys in LM ID. ")
     '''
-
+    print("=================================================================.")
+    print("Test Case 14: Checking Classyfire classification is a lipid")
+    print("=================================================================.")
+    try: 
+        is_lipid_from_classyfire = is_a_lipid_from_classyfire("RDHQFKQIGNGIED-UHFFFAOYSA-N")
+        if is_lipid_from_classyfire:
+            print("Test PASS Checking lipids in classyfire")
+        else: 
+            print("Test FAIL. Check lipids in classyfire for INCHI KEY RDHQFKQIGNGIED-UHFFFAOYSA-N")
+    except Exception as e:
+        print("Test FAIL. Check lipids in classyfire" + e)
+    try: 
+        is_lipid_from_classyfire = is_a_lipid_from_classyfire("BSYNRYMUTXBXSQ-UHFFFAOYSA-N")
+        if is_lipid_from_classyfire:
+            print("Test FAIL Checking lipids in classyfire with a lipid where is not. Check BSYNRYMUTXBXSQ-UHFFFAOYSA-N")
+        else: 
+            print("Test PASS. Check lipids in classyfire")
+    except Exception as e:
+        print("Test PASS Checking wrong inchi keys in CLASSYFIRE ")
+    try: 
+        inchi_key = is_a_lipid_from_classyfire("asd")
+        print("Test FAIL. Check the classifcation of inchi key" + e)
+    except Exception as e:
+        print("Test PASS Checking wrong inchi keys in CLASSYFIRE ")
+    try: 
+        inchi_key = is_a_lipid_from_classyfire("QTNZEFGUDULPSY-UHFFFAOYSA-N")
+        print("Test FAIL. Check the classification of inchi key" + e)
+    except Exception as e:
+        if e.code == 500:
+            print("Test PASS Checking wrong inchi keys in CLASSYFIRE of a compound with inchi key QTNZEFGUDULPSY-UHFFFAOYSA-N")
+        else:
+            print("Test FAIL. Check the LM ID of inchi key" + e)
+    
 if __name__ == "__main__":
     main()
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
+ 
 """
 @contents :  This module contains functions to generate fingerprints and descriptors using alvaDesc program from the SMRT database
 @project :  cmmrt (CEU Mass Mediator Retention Time)
@@ -29,17 +29,18 @@ import build_data
 ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
 
 def main():
-    
+    inputPath = '/home/alberto/OneDrive/research/SMRT_in_CMM/'
+    outputPath = '/home/alberto/repos/cmm_rt_shared/'
     #Constants
     NUMBER_FPVALUES=2214
     # VARIABLES OF AlvaDesc Software
 
     aDesc = AlvaDesc(ALVADESC_LOCATION)
     # INPUT PATH CONTAINS PC IDS, RTs and INCHI of SMRT Database
-    inputPath = 'C:/Users/alberto.gildelafuent/OneDrive - Fundación Universitaria San Pablo CEU/research/SMRT_in_CMM/'
-    inputFileName = inputPath + "SMRT_dataset_test.csv"
+    
+    inputFileName = inputPath + "SMRT_dataset.csv"
     # IT WILL TAKE SDFs FROM PC IDS to create a CSV file containing the vector with fingerprints (ECFP, MACCSFP and PFP) of each SMRT compound
-    outputPath = 'C:/Users/alberto.gildelafuent/Desktop/alberto/resources/SMRT/'
+    
     sdfPath = outputPath + "SDF/"
     outputFileDescriptorsName = outputPath + "vector_fingerprints/SMRT_descriptors.csv"
     outputFileFingerprintsName = outputPath + "vector_fingerprints/SMRT_vectorfingerprints.csv"
@@ -51,29 +52,46 @@ def main():
     if os.path.isfile(outputFileMergedName):
         os.remove(outputFileMergedName)
 
+
+    # GET HEADERS FROM CLASSYFIRE
+    classyfireFieldName ="lipid_from_classyfire"
+
+    # CHECK IF THE COMPOUND IS IN LIPIDMAPS
+    lipidMapsFieldName ="presence_in_lipidmaps"
+
     # RUN A MOCK SDF TO OBTAIN DESCRIPTORS HEADERS
     aDesc.set_input_file(sdfPath + '1.sdf', 'MDL')
     aDesc.calculate_descriptors('ALL')
     listDescriptors = aDesc.get_output_descriptors()
     outputFileDescriptors = open(outputFileDescriptorsName, 'w', newline='')
     descriptorFieldNames =['pid','rt']
+    descriptorFieldNames.append(classyfireFieldName)
+    descriptorFieldNames.append(lipidMapsFieldName)
     descriptorFieldNames.extend(listDescriptors)
+
+    # Write headers
     writerDescriptors = csv.DictWriter(outputFileDescriptors, fieldnames = descriptorFieldNames)
     writerDescriptors.writeheader()
 
     # WRITER FOR FINGERPRINTS
     outputFileFingerprints = open(outputFileFingerprintsName, 'w', newline='')
     FPFieldNames =['pid','rt']
+    FPFieldNames.append(classyfireFieldName)
+    FPFieldNames.append(lipidMapsFieldName)
     for i in range(0,NUMBER_FPVALUES):
         header_name = "V" + str(i+1)
         FPFieldNames.append(header_name)
+
+    # Write headers
     writerFP = csv.DictWriter(outputFileFingerprints, fieldnames = FPFieldNames)
     writerFP.writeheader()
 
     # WRITER FOR MERGED
     mergedFieldNames = descriptorFieldNames[:]
-    mergedFieldNames.extend(FPFieldNames[2:])
+    mergedFieldNames.extend(FPFieldNames[4:])
     outputFileMerged = open(outputFileMergedName, 'w', newline='')
+
+    # Write headers
     writerMerged = csv.DictWriter(outputFileMerged, fieldnames = mergedFieldNames)
     writerMerged.writeheader()
     
@@ -86,6 +104,30 @@ def main():
             partialDictMerged = {'pid' : pc_id, 'rt' : rt}
             descriptors = build_data.get_descriptors(aDesc,sdffileName)
             partialDictDescriptors = {'pid' : pc_id, 'rt' : rt}
+            is_classyfire_lipid = 0
+            try:
+                print(pc_id)
+                inchi_key = build_data.get_inchi_key_from_pubchem(pc_id)
+                print(inchi_key)
+                is_lipid_lipidMaps = build_data.is_in_lipidMaps(inchi_key)
+                print(is_lipid_lipidMaps)
+                if is_lipid_lipidMaps:
+                    is_lipid_lipidMaps = 1
+                else:
+                    is_lipid_lipidMaps = 0
+
+                is_lipid_from_classyfire = build_data.is_a_lipid_from_classyfire(inchi_key)
+                print(is_lipid_from_classyfire)
+                if is_lipid_from_classyfire:
+                    is_lipid_from_classyfire = 1
+                else: 
+                    is_lipid_from_classyfire = 0
+
+            except Exception as e:
+                print("CHECK THE PC ID " + pc_id + " and its inchi: " + inchi_key)
+            
+            partialDictDescriptors[classyfireFieldName] = is_lipid_from_classyfire
+            partialDictDescriptors[lipidMapsFieldName] = is_lipid_lipidMaps
             for i in range(0,len(listDescriptors)):
                 descriptor_header = listDescriptors[i]
                 partialDictDescriptors[descriptor_header] = descriptors[i]
@@ -94,6 +136,8 @@ def main():
 
             vector_fingerprints = build_data.generate_vector_fingerprints(aDesc,sdffileName)
             partialDictFP = {'pid' : pc_id, 'rt' : rt}
+            partialDictFP[classyfireFieldName] = 0
+            partialDictFP[lipidMapsFieldName] = 0
             for i in range(0,NUMBER_FPVALUES):
                 header_name = "V" + str(i+1)
                 partialDictFP[header_name] = vector_fingerprints[i]
