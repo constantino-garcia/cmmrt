@@ -20,15 +20,11 @@
               Copyright and license notices must be preserved. Contributors provide an express grant of patent rights.
 @end
 """
-from alvadesccliwrapper.alvadesc import AlvaDesc
 import csv
 import os
 import build_data
 import pandas as pd
 import time
-
-#ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
-ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
 
 def main():
     inputPath = '/home/alberto/repos/cmm_rt_shared/'
@@ -36,7 +32,7 @@ def main():
     #Constants
     NUMBER_FPVALUES=2214
 
-    inputFileName = inputPath + "SMRT_vectorfingerprints.csv"
+    inputFileName = inputPath + "SMRT_vectorfingerprints_test.csv"
     # IT WILL TAKE SDFs FROM PC IDS to create a CSV file containing the vector with fingerprints (ECFP, MACCSFP and PFP) of each SMRT compound
     
     outputFileFingerprintsName = outputPath + "vector_fingerprints/SMRT_vectorfingerprints_categorize_lipids.csv"
@@ -75,9 +71,7 @@ def main():
                 print(pc_id)
                 inchi_key = build_data.get_inchi_key_from_pubchem(pc_id)
 
-                print(inchi_key)
                 is_lipid_lipidMaps = build_data.is_in_lipidMaps(inchi_key)
-                print(is_lipid_lipidMaps)
 
                 if is_lipid_lipidMaps:
                     is_lipid_lipidMaps = 1
@@ -87,7 +81,6 @@ def main():
                 while True:
                     try:
                         is_lipid_from_classyfire = build_data.is_a_lipid_from_classyfire(inchi_key)
-                        print(is_lipid_from_classyfire)
                         break
                     except Exception as e:
                         if e.code == 500:

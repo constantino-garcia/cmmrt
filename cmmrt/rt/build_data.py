@@ -34,7 +34,7 @@ outputPath = 'resources/'
 
 def is_a_lipid_from_classyfire(inchi_key):
     """ 
-        check if the inchi key is a lipid according to classyfire classification
+        check if the inchi key is a lipid according to classyfire classification. First it uses the gnps2 classyfire endpoint. If it is not there, it goes to the classyfire one.
 
         Syntax
         ------
@@ -58,18 +58,28 @@ def is_a_lipid_from_classyfire(inchi_key):
     """
 
     # http://classyfire.wishartlab.com/entities/BSYNRYMUTXBXSQ-UHFFFAOYSA-N.json
+    # https://structure.gnps2.org/classyfire?inchikey=InChIKey=RYYVLZVUVIJVGH-UHFFFAOYSA-N
+
+    url_gnps2_classyfire = "https://structure.gnps2.org/classyfire?inchikey=" + inchi_key
     url_classyfire="http://classyfire.wishartlab.com/entities/" + inchi_key + ".json"
     while True:
         try:
-            with urllib.request.urlopen(url_classyfire) as jsonclassyfire:
-                data = json.load(jsonclassyfire)
-                superclass = data["superclass"]["name"]
-                if(superclass == "Lipids and lipid-like molecules"):
-                    return True
+            with urllib.request.urlopen(url_gnps2_classyfire) as jsonclassyfire:
+                response_code = jsonclassyfire.getcode()
+
+                if response_code == 200:
+                    data = json.load(jsonclassyfire)
+                    superclass = data["superclass"]["name"]
+                    if(superclass == "Lipids and lipid-like molecules"):
+                        return True
+                    else:
+                        return False
+                    #print(data)
+                # If the data is not in gnps2, then we hit the classyfire endpoint
                 else:
-                    return False
-                #print(data)
+                    url_gnps2_classyfire = url_classyfire
         except urllib.error.HTTPError as e:
+
             raise e
         except Exception as e:
             print("Connection error")
