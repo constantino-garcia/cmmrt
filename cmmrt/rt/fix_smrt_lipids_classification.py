@@ -27,15 +27,15 @@ import pandas as pd
 import time
 
 def main():
-    inputPath = '/home/alberto/data/'
-    outputPath = '/home/alberto/data/'
+    inputPath = '/home/alberto/data/vector_fingerprints/'
+    outputPath = '/home/alberto/data/vector_fingerprints/'
     #Constants
     NUMBER_FPVALUES=2214
 
-    inputFileName = inputPath + "SMRT_vectorfingerprints.csv"
+    inputFileName = inputPath + "SMRT_vectorfingerprints_categorize_lipids.csv"
     # IT WILL TAKE SDFs FROM PC IDS to create a CSV file containing the vector with fingerprints (ECFP, MACCSFP and PFP) of each SMRT compound
     
-    outputFileFingerprintsName = outputPath + "vector_fingerprints/SMRT_vectorfingerprints_categorize_lipids.csv"
+    outputFileFingerprintsName = outputPath + "SMRT_vectorfingerprints_categorize_lipids_fixed.csv"
     if os.path.isfile(outputFileFingerprintsName):
         os.remove(outputFileFingerprintsName)
 
@@ -64,40 +64,40 @@ def main():
     with open(inputFileName) as csvfile:
         reader = csv.DictReader(csvfile,delimiter=',')
         for row in reader:
-            pc_id = row["pid"]
-            is_lipid_lipidMaps = 0
-            is_lipid_from_classyfire = 0
-            try:
+            classified_classyfire=row["lipid_from_classyfire"]
+            classified_lipidmaps=row["presence_in_lipidmaps"]
+            pc_id=0
+            if not classified_classyfire in('0','1'):
+                pc_id = row["pid"]
                 print(pc_id)
                 inchi, inchi_key = build_data.get_inchi_and_inchi_key_from_pubchem(pc_id)
-                try:
-                    is_lipid_lipidMaps = build_data.is_in_lipidMaps(inchi_key)
-                    if is_lipid_lipidMaps:
-                        is_lipid_lipidMaps = 1
-                    else:
-                        is_lipid_lipidMaps = 0
-                except Exception:
-                    print("Check LipidMaps classification for PC ID " + pc_id)
-                    is_lipid_lipidMaps = "Not classified"
-
                 try:
                     is_lipid_from_classyfire = build_data.is_a_lipid_from_classyfire(inchi, inchi_key)
                     if is_lipid_from_classyfire:
                         is_lipid_from_classyfire = 1
                     else: 
                         is_lipid_from_classyfire = 0
-                except Exception:
-                    print("Check CLASSYFIRE classification for PC ID " + pc_id)
+                    row[classyfireFieldName] = is_lipid_from_classyfire
+                except Exception as e:
+                    print(e)
+                    print("Check CLASSYFIRE classification for PC ID " + pc_id + " Inchi key: " + inchi_key + " inchi: " + inchi)
                     is_lipid_from_classyfire = "Not classified"
-                        
-                
-            except Exception as e:
-                print(e)
-                print("CHECK PC ID " + pc_id + " and its inchi_key: " + inchi_key + " inchi: " + inchi)
-                is_lipid_from_classyfire = "Not classified"
+            if not classified_lipidmaps in('0','1'):
+                if pc_id ==0:
+                    pc_id = row["pid"]
+                    print(pc_id)
+                    inchi, inchi_key = build_data.get_inchi_and_inchi_key_from_pubchem(pc_id)
+                try:
+                    is_lipid_lipidMaps = build_data.is_in_lipidMaps(inchi_key)
+                    if is_lipid_lipidMaps:
+                        is_lipid_lipidMaps = 1
+                    else:
+                        is_lipid_lipidMaps = 0
+                    row[lipidMapsFieldName] = is_lipid_lipidMaps
+                except Exception:
+                    print("Check LipidMaps classification for PC ID: " + pc_id + " Inchi key: " + inchi_key + " inchi: " + inchi)
+                    is_lipid_lipidMaps = "Not classified"
 
-            row[classyfireFieldName] = is_lipid_from_classyfire
-            row[lipidMapsFieldName] = is_lipid_lipidMaps
             writerFP.writerow(row)
 
 
