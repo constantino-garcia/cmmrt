@@ -24,7 +24,7 @@
 import urllib.request,urllib.error, json 
 import time
 import os
-from alvadesccliwrapper.alvadesc import AlvaDesc
+#from alvadesccliwrapper.alvadesc import AlvaDesc
 
 NUMBER_FPVALUES = 2214
 NUMBER_DESCRIPTORS = 6524
@@ -41,16 +41,18 @@ def list_of_ints_from_str(big_int_str):
     ints_list = [int(d) for d in str(big_int_str)]
     return ints_list
 
-def is_a_lipid_from_classyfire(inchi_key):
+def is_a_lipid_from_classyfire(inchi, inchi_key):
     """ 
-        check if the inchi key is a lipid according to classyfire classification. First it uses the gnps2 classyfire endpoint. If it is not there, it goes to the classyfire one.
+        check if the inchi key is a lipid according to classyfire classification. First it uses the gnps2 classyfire endpoint. If it is not there, it goes to the classyfire one. It uses inchi key first, if not classified, inchi. 
 
         Syntax
         ------
-          boolean = is_a_lipid_from_classyfire(inchi_key)
+          boolean = is_a_lipid_from_classyfire(inchi, inchi_key)
 
         Parameters
         ----------
+
+            [in] inchi: string with the inchi of a compound
             [in] inchi_key: string with the inchi key of a compound
 
         Returns
@@ -70,7 +72,9 @@ def is_a_lipid_from_classyfire(inchi_key):
     # https://structure.gnps2.org/classyfire?inchikey=InChIKey=RYYVLZVUVIJVGH-UHFFFAOYSA-N
 
     url_gnps2_classyfire = "https://structure.gnps2.org/classyfire?inchikey=" + inchi_key
-    url_classyfire="http://classyfire.wishartlab.com/entities/" + inchi_key + ".json"
+    tried_gnsp2_inchi_key = False
+    tried_gnsp2_inchi = False
+    retries = 0
     while True:
         try:
             with urllib.request.urlopen(url_gnps2_classyfire) as jsonclassyfire:
@@ -79,21 +83,36 @@ def is_a_lipid_from_classyfire(inchi_key):
                 if response_code == 200:
                     data = json.load(jsonclassyfire)
                     superclass = data["superclass"]["name"]
-                    if(superclass == "Lipids and lipid-like molecules"):
+                    if superclass == "Lipids and lipid-like molecules":
                         return True
                     else:
                         return False
                     #print(data)
                 # If the data is not in gnps2, then we hit the classyfire endpoint
                 else:
-                    url_gnps2_classyfire = url_classyfire
-        except urllib.error.HTTPError as e:
-
-            raise e
-        except Exception as e:
-            print("Connection error")
-            print(e)
-            time.sleep(5)
+                    if not tried_gnsp2_inchi_key:
+                        tried_gnsp2_inchi_key = True
+                        url_gnps2_classyfire = "https://structure.gnps2.org/classyfire?inchi=" + inchi
+                    elif not tried_gnsp2_inchi:
+                        tried_gnsp2_inchi = True
+                        url_gnps2_classyfire = "http://classyfire.wishartlab.com/entities/" + inchi_key + ".json"
+        except urllib.error.HTTPError as exception:
+            if exception.code == 400 or exception.code == 500:
+                if not tried_gnsp2_inchi_key:
+                    tried_gnsp2_inchi_key = True
+                    url_gnps2_classyfire = "https://structure.gnps2.org/classyfire?inchi=" + inchi
+                elif not tried_gnsp2_inchi:
+                    tried_gnsp2_inchi = True
+                    url_gnps2_classyfire = "http://classyfire.wishartlab.com/entities/" + inchi_key + ".json"
+                else:
+                    raise exception
+            elif exception.code == 429:
+                if retries < 3:
+                    print("Too many requests. Try in 5 seconds")
+                    print(exception)
+                    time.sleep(5)
+            else:
+                raise exception
 
 
 def is_in_lipidMaps(inchi_key):
@@ -114,26 +133,27 @@ def is_in_lipidMaps(inchi_key):
 
         Exceptions
         ----------
-          None
+          Exception if the lipidmaps endpoint is not accesible
 
         Example
         -------
-          >>> is_in_lipidMaps = is_in_lipidMaps("RDHQFKQIGNGIED-UHFFFAOYSA-N")
+          >>> is_in_lipidMaps2 = is_in_lipidMaps("RDHQFKQIGNGIED-UHFFFAOYSA-N")
     """
     try:
-        inchi_key = get_inchi_key_from_pubchem(pc_id)
         lm_id = get_lm_id_from_inchi_key(inchi_key)
         return True
-    except Exception as e:
+    except ValueError as ve:
         return False
+    except Exception as e:
+        raise e
 
-def get_inchi_key_from_pubchem(pc_id):
+def get_inchi_and_inchi_key_from_pubchem(pc_id):
     """ 
-        Get inchi key from the pubchem identifier 
+        Get inchi and inchi key from the pubchem identifier. It retries the call 3 times if the request is not responded.
 
         Syntax
         ------
-          str = get_inchi_key_from_pubchem(pc_id)
+          str = get_inchi_and_inchi_key_from_pubchem(pc_id)
 
         Parameters
         ----------
@@ -141,6 +161,7 @@ def get_inchi_key_from_pubchem(pc_id):
 
         Returns
         -------
+          str containing the inchi 
           str containing the inchi key
 
         Exceptions
@@ -152,28 +173,33 @@ def get_inchi_key_from_pubchem(pc_id):
         -------
           >>> inchi_key = get_inchi_key_from_pubchem(1)
     """
-    url_pubchem="https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/" + str(pc_id) + "/property/InChIKey/JSON"
-    while True:
+    url_pubchem="https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/" + str(pc_id) + "/property/InChI,InChIKey/JSON"
+    retries = 0
+    while retries < 5:
         try:
             with urllib.request.urlopen(url_pubchem) as jsonpubchem:
                 data = json.load(jsonpubchem)
                 data_compound = data["PropertyTable"]["Properties"][0]
                 #print(data)
                 try:
-                    if 'InChIKey' not in data_compound:
-                        inchikey = "null"
-                        raise Exception('INCHI KEY NOT FOUND')
+                    if 'InChI' not in data_compound or 'InChIKey' not in data_compound:
+                        raise Exception('INCHI NOT FOUND')
                     else:
-                        inchikey = data_compound["InChIKey"]
-                        return inchikey
+                        inchi = data_compound["InChI"]
+                        inchi_key = data_compound["InChIKey"]
+                        return inchi, inchi_key
                 except Exception as e:
-                    raise Exception('INCHI KEY NOT FOUND' + url_pubchem)
+                    raise Exception('INCHI or INCHI KEY NOT FOUND at ' + url_pubchem)
         except urllib.error.HTTPError as e:
-            raise Exception('HTTP NOT FOUND: ' + url_pubchem)
-        except Exception as e:
-            print("Connection error")
             print(e)
+            time.sleep(2)
+            retries +=1
+        except Exception as e:
+            print("Connection error to PUBCHEM" + str(e))
             time.sleep(5)
+            retries +=1
+    print("NOT FOUND URL")
+    raise Exception('HTTP NOT FOUND: ' + url_pubchem)
 
 def get_lm_id_from_inchi_key(inchi_key):
     """ 
@@ -194,7 +220,8 @@ def get_lm_id_from_inchi_key(inchi_key):
         Exceptions
         ----------
           Exception:
-            If the inchi key is not in the lipid maps database
+            ValueError: If the inchi key is not in the lipid maps database
+            HttpError: if the url cannot be resolved or the lipidmaps server is down
 
         Example
         -------
@@ -202,22 +229,14 @@ def get_lm_id_from_inchi_key(inchi_key):
     """
     url_lipidmaps="https://www.lipidmaps.org/rest/compound/inchi_key/" + inchi_key + "/all"
     while True:
-        try:
-            with urllib.request.urlopen(url_lipidmaps) as jsonLipidMaps:
-                data = json.load(jsonLipidMaps)
-                
-                if 'lm_id' not in data:
-                    raise Exception('LM ID from INCHI KEY ' + inchi_key + ' NOT FOUND')
-                else:
-                    lm_id = data["lm_id"]
-                    return lm_id
-                
-        except urllib.error.HTTPError as e:
-            raise Exception('HTTP NOT FOUND: ' + url_lipidmaps)
-            print("Connection error")
-            print(e)
-            time.sleep(5)
-
+        with urllib.request.urlopen(url_lipidmaps) as jsonLipidMaps:
+            data = json.load(jsonLipidMaps)
+            if 'lm_id' not in data:
+                raise ValueError('LM ID from INCHI KEY ' + inchi_key + ' NOT FOUND')
+            else:
+                lm_id = data["lm_id"]
+                return lm_id
+        
 
 
 
@@ -725,7 +744,7 @@ def main():
     print("Test Case 12: Checking INCHI KEY from Pubchem ID ")
     print("=================================================================.")
     try: 
-        inchi_key = get_inchi_key_from_pubchem(1)
+        inchi, inchi_key = get_inchi_and_inchi_key_from_pubchem(1)
         if inchi_key == "RDHQFKQIGNGIED-UHFFFAOYSA-N":
             print("Test PASS Checking inchi key from pubchem ")
         else: 
@@ -733,8 +752,8 @@ def main():
     except Exception as e:
         print("est FAIL. Check the call to pubchem API" + e)
     try: 
-        inchi_key = get_inchi_key_from_pubchem("asd")
-        print("Test FAIL. Check the method get_inchi_key_from_pubchem(inchi_key)")
+        inchi, inchi_key = get_inchi_and_inchi_key_from_pubchem("asd")
+        print("Test FAIL. Check the method get_inchi_and_inchi_key_from_pubchem(inchi_key)")
     except Exception as e:
         print("Test PASS Checking wrong inchi keys. ")
     
@@ -759,7 +778,7 @@ def main():
     print("Test Case 14: Checking Classyfire classification is a lipid")
     print("=================================================================.")
     try: 
-        is_lipid_from_classyfire = is_a_lipid_from_classyfire("RDHQFKQIGNGIED-UHFFFAOYSA-N")
+        is_lipid_from_classyfire = is_a_lipid_from_classyfire("InChI=1S/C9H17NO4/c1-7(11)14-8(5-9(12)13)6-10(2,3)4/h8H,5-6H2,1-4H3","RDHQFKQIGNGIED-UHFFFAOYSA-N")
         if is_lipid_from_classyfire:
             print("Test PASS Checking lipids in classyfire")
         else: 
@@ -767,7 +786,7 @@ def main():
     except Exception as e:
         print("Test FAIL. Check lipids in classyfire" + e)
     try: 
-        is_lipid_from_classyfire = is_a_lipid_from_classyfire("BSYNRYMUTXBXSQ-UHFFFAOYSA-N")
+        is_lipid_from_classyfire = is_a_lipid_from_classyfire("InChI=1S/C9H8O4/c1-6(10)13-8-5-3-2-4-7(8)9(11)12/h2-5H,1H3,(H,11,12)","BSYNRYMUTXBXSQ-UHFFFAOYSA-N")
         if is_lipid_from_classyfire:
             print("Test FAIL Checking lipids in classyfire with a lipid where is not. Check BSYNRYMUTXBXSQ-UHFFFAOYSA-N")
         else: 
@@ -775,12 +794,20 @@ def main():
     except Exception as e:
         print("Test PASS Checking wrong inchi keys in CLASSYFIRE ")
     try: 
-        inchi_key = is_a_lipid_from_classyfire("asd")
+        inchi_key = is_a_lipid_from_classyfire("asd","asd")
         print("Test FAIL. Check the classifcation of inchi key" + e)
     except Exception as e:
         print("Test PASS Checking wrong inchi keys in CLASSYFIRE ")
     try: 
-        inchi_key = is_a_lipid_from_classyfire("QTNZEFGUDULPSY-UHFFFAOYSA-N")
+        inchi_key = is_a_lipid_from_classyfire("InChI=1S/C6H9N3S/c1-3-4-8-6(10-2)9-5-7/h3H,1,4H2,2H3,(H,8,9)", "QTNZEFGUDULPSY-UHFFFAOYSA-N")
+        print("Test FAIL. Check the classification of inchi key" + e)
+    except Exception as e:
+        if e.code == 500:
+            print("Test PASS Checking wrong inchi keys in CLASSYFIRE of a compound with inchi key QTNZEFGUDULPSY-UHFFFAOYSA-N")
+        else:
+            print("Test FAIL. Check the LM ID of inchi key" + e)
+    try: 
+        inchi_key = is_a_lipid_from_classyfire("InChI=1S/C16H20FN3O3S/c1-12(2)24(21,22)20-10-8-16(17,9-11-20)15-18-14(19-23-15)13-6-4-3-5-7-13/h3-7,12H,8-11H2,1-2H3", "DSMCTAYHDQSAIU-UHFFFAOYSA-N")
         print("Test FAIL. Check the classification of inchi key" + e)
     except Exception as e:
         if e.code == 500:
