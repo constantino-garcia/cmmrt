@@ -101,10 +101,8 @@ def main():
             pc_id = row["pubchem"]
             rt = row["rt"]
             sdffileName = sdfPath + str(pc_id) + ".sdf"
-            partialDictMerged = {'pid' : pc_id, 'rt' : rt}
             descriptors = build_data.get_descriptors(aDesc,sdffileName)
             partialDictDescriptors = {'pid' : pc_id, 'rt' : rt}
-            is_classyfire_lipid = 0
             try:
                 print(pc_id)
                 inchi_key = build_data.get_inchi_key_from_pubchem(pc_id)
