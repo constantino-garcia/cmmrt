@@ -113,35 +113,64 @@ def main():
 
         for row in reader:
             smiles = row["smiles"]
-            # Do directly the copy of all elements of the row
-            descriptors = build_data.get_descriptors(aDesc,smiles=smiles)
-            partialDictDescriptorsRow = row.copy()
-            
-            for i in range(0,len(listDescriptors)):
-                descriptor_header = listDescriptors[i]
-                partialDictDescriptorsRow[descriptor_header] = descriptors[i]
-            writerDescriptors.writerow(partialDictDescriptorsRow)
-            partialDictDescriptorsAndFingerprintsRow = partialDictDescriptorsRow.copy()
-            partialDictDescriptorsAndFingerprintsVectorizedRow = partialDictDescriptorsRow.copy()
-            # Add fingerprints
-            fingerprint_ecfp = build_data.get_fingerprint(aDesc,smiles=smiles, fingerprint_type='ECFP')
-            fingerprint_maccs = build_data.get_fingerprint(aDesc,smiles=smiles, fingerprint_type='MACCSFP')
-            fingerprint_pfp = build_data.get_fingerprint(aDesc,smiles=smiles, fingerprint_type='PFP')
-            fingerprint_morgan = build_data.get_morgan_fingerprint_rdkit(smiles=smiles)
-            partialDictDescriptorsAndFingerprintsRow['ECFP'] = fingerprint_ecfp
-            partialDictDescriptorsAndFingerprintsRow['MACCSFP'] = fingerprint_maccs
-            partialDictDescriptorsAndFingerprintsRow['PFP'] = fingerprint_pfp
-            partialDictDescriptorsAndFingerprintsRow['MorganFP'] = fingerprint_morgan
-            writerDescriptorsAndFingerprints.writerow(partialDictDescriptorsAndFingerprintsRow)
+            if smiles == "--":
+                
+                partialDictDescriptorsRow = row.copy()
+                
+                for i in range(0,len(listDescriptors)):
+                    descriptor_header = listDescriptors[i]
+                    partialDictDescriptorsRow[descriptor_header] = "NA"
+                writerDescriptors.writerow(partialDictDescriptorsRow)
+                partialDictDescriptorsAndFingerprintsRow = partialDictDescriptorsRow.copy()
+                partialDictDescriptorsAndFingerprintsVectorizedRow = partialDictDescriptorsRow.copy()
+                # Add fingerprints
+                partialDictDescriptorsAndFingerprintsRow['ECFP'] = "NA"
+                partialDictDescriptorsAndFingerprintsRow['MACCSFP'] = "NA"
+                partialDictDescriptorsAndFingerprintsRow['PFP'] = "NA"
+                
+                partialDictDescriptorsAndFingerprintsRow['MorganFP'] = "NA"
+                writerDescriptorsAndFingerprints.writerow(partialDictDescriptorsAndFingerprintsRow)
 
-            vector_fingerprints = build_data.generate_vector_fingerprints(aDesc,smiles=smiles)
-            partialDictFP = row.copy()
-            for i in range(0,NUMBER_FPVALUES):
-                header_name = "V" + str(i+1)
-                partialDictFP[header_name] = vector_fingerprints[i]
-                partialDictDescriptorsAndFingerprintsVectorizedRow[header_name] = vector_fingerprints[i]
-            writerFingerprintsVectorized.writerow(partialDictFP)
-            writerDescriptorsAndFingerPrintsVectorized.writerow(partialDictDescriptorsAndFingerprintsVectorizedRow)
+                partialDictFP = row.copy()
+                for i in range(0,NUMBER_FPVALUES):
+                    header_name = "V" + str(i+1)
+                    partialDictFP[header_name] = "NA"
+                    partialDictDescriptorsAndFingerprintsVectorizedRow[header_name] = "NA"
+                writerFingerprintsVectorized.writerow(partialDictFP)
+                writerDescriptorsAndFingerPrintsVectorized.writerow(partialDictDescriptorsAndFingerprintsVectorizedRow)
+
+            else:
+
+                # Do directly the copy of all elements of the row
+                descriptors = build_data.get_descriptors(aDesc,smiles=smiles)
+                partialDictDescriptorsRow = row.copy()
+                
+                for i in range(0,len(listDescriptors)):
+                    descriptor_header = listDescriptors[i]
+                    partialDictDescriptorsRow[descriptor_header] = descriptors[i]
+                writerDescriptors.writerow(partialDictDescriptorsRow)
+                partialDictDescriptorsAndFingerprintsRow = partialDictDescriptorsRow.copy()
+                partialDictDescriptorsAndFingerprintsVectorizedRow = partialDictDescriptorsRow.copy()
+                # Add fingerprints
+                fingerprint_ecfp = build_data.get_fingerprint(aDesc,smiles=smiles, fingerprint_type='ECFP')
+                fingerprint_maccs = build_data.get_fingerprint(aDesc,smiles=smiles, fingerprint_type='MACCSFP')
+                fingerprint_pfp = build_data.get_fingerprint(aDesc,smiles=smiles, fingerprint_type='PFP')
+                fingerprint_morgan = build_data.get_morgan_fingerprint_rdkit(smiles=smiles)
+                partialDictDescriptorsAndFingerprintsRow['ECFP'] = fingerprint_ecfp
+                partialDictDescriptorsAndFingerprintsRow['MACCSFP'] = fingerprint_maccs
+                partialDictDescriptorsAndFingerprintsRow['PFP'] = fingerprint_pfp
+                
+                partialDictDescriptorsAndFingerprintsRow['MorganFP'] = fingerprint_morgan
+                writerDescriptorsAndFingerprints.writerow(partialDictDescriptorsAndFingerprintsRow)
+
+                vector_fingerprints = build_data.generate_vector_fingerprints(aDesc,smiles=smiles)
+                partialDictFP = row.copy()
+                for i in range(0,NUMBER_FPVALUES):
+                    header_name = "V" + str(i+1)
+                    partialDictFP[header_name] = vector_fingerprints[i]
+                    partialDictDescriptorsAndFingerprintsVectorizedRow[header_name] = vector_fingerprints[i]
+                writerFingerprintsVectorized.writerow(partialDictFP)
+                writerDescriptorsAndFingerPrintsVectorized.writerow(partialDictDescriptorsAndFingerprintsVectorizedRow)
 
 
 if __name__ == "__main__":
