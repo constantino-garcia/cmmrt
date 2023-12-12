@@ -155,7 +155,10 @@ def main():
                 fingerprint_ecfp = build_data.get_fingerprint(aDesc,smiles=smiles, fingerprint_type='ECFP')
                 fingerprint_maccs = build_data.get_fingerprint(aDesc,smiles=smiles, fingerprint_type='MACCSFP')
                 fingerprint_pfp = build_data.get_fingerprint(aDesc,smiles=smiles, fingerprint_type='PFP')
-                fingerprint_morgan = build_data.get_morgan_fingerprint_rdkit(smiles=smiles)
+                try:
+                    fingerprint_morgan = build_data.get_morgan_fingerprint_rdkit(smiles=smiles)
+                except Exception as e: 
+                    fingerprint_morgan = "NA"
                 partialDictDescriptorsAndFingerprintsRow['ECFP'] = fingerprint_ecfp
                 partialDictDescriptorsAndFingerprintsRow['MACCSFP'] = fingerprint_maccs
                 partialDictDescriptorsAndFingerprintsRow['PFP'] = fingerprint_pfp

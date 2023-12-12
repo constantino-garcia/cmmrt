@@ -34,6 +34,7 @@ outputPath = '/home/alberto/repos/cmmrt/cmmrt/rt/resources/'
 
 from rdkit import Chem
 from rdkit.Chem import AllChem
+from rdkit.Chem.rdmolops import FastFindRings
 
 
 
@@ -309,7 +310,9 @@ def get_morgan_fingerprint_rdkit(smiles):
 
     # Convert SMILES to RDKit Mol object
     mol = Chem.MolFromSmiles(smiles)
-
+    mol = Chem.MolFromSmiles(smiles, sanitize=False)
+    mol.UpdatePropertyCache()
+    FastFindRings(mol)
     # Generate Morgan fingerprint with a radius of 2
     fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius=2, nBits=1024)
 
