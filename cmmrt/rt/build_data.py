@@ -787,7 +787,7 @@ def main():
         else: 
             print("Test FAIL. Check lipids in classyfire for INCHI KEY RDHQFKQIGNGIED-UHFFFAOYSA-N")
     except Exception as e:
-        print("Test FAIL. Check lipids in classyfire" + e)
+        print("Test FAIL. Check lipids in classyfire" + str(e))
     try: 
         is_lipid_from_classyfire = is_a_lipid_from_classyfire("InChI=1S/C9H8O4/c1-6(10)13-8-5-3-2-4-7(8)9(11)12/h2-5H,1H3,(H,11,12)","BSYNRYMUTXBXSQ-UHFFFAOYSA-N")
         if is_lipid_from_classyfire:
@@ -798,25 +798,25 @@ def main():
         print("Test PASS Checking wrong inchi keys in CLASSYFIRE ")
     try: 
         inchi_key = is_a_lipid_from_classyfire("asd","asd")
-        print("Test FAIL. Check the classifcation of inchi key" + e)
+        print("Test FAIL. Check the classifcation of inchi key" + str(e))
     except Exception as e:
         print("Test PASS Checking wrong inchi keys in CLASSYFIRE ")
     try: 
         inchi_key = is_a_lipid_from_classyfire("InChI=1S/C6H9N3S/c1-3-4-8-6(10-2)9-5-7/h3H,1,4H2,2H3,(H,8,9)", "QTNZEFGUDULPSY-UHFFFAOYSA-N")
-        print("Test FAIL. Check the classification of inchi key" + e)
+        print("Test FAIL. Check the classification of inchi key" + str(e))
     except Exception as e:
         if e.code == 500:
             print("Test PASS Checking wrong inchi keys in CLASSYFIRE of a compound with inchi key QTNZEFGUDULPSY-UHFFFAOYSA-N")
         else:
-            print("Test FAIL. Check the LM ID of inchi key" + e)
+            print("Test FAIL. Check the LM ID of inchi key" + str(e))
     try: 
         inchi_key = is_a_lipid_from_classyfire("InChI=1S/C16H20FN3O3S/c1-12(2)24(21,22)20-10-8-16(17,9-11-20)15-18-14(19-23-15)13-6-4-3-5-7-13/h3-7,12H,8-11H2,1-2H3", "DSMCTAYHDQSAIU-UHFFFAOYSA-N")
-        print("Test FAIL. Check the classification of inchi key" + e)
+        print("Test FAIL. Check the classification of inchi key" + str(e))
     except Exception as e:
         if e.code == 500:
             print("Test PASS Checking wrong inchi keys in CLASSYFIRE of a compound with inchi key QTNZEFGUDULPSY-UHFFFAOYSA-N")
         else:
-            print("Test FAIL. Check the LM ID of inchi key" + e)
+            print("Test FAIL. Check the LM ID of inchi key" + + str(e))
     
 if __name__ == "__main__":
     main()
