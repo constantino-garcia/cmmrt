@@ -35,10 +35,6 @@ NUMBER_DESCRIPTORS = 5666
 
 def main():
     
-    
-    
-    
-
     aDesc = AlvaDesc(ALVADESC_LOCATION)
     # INPUT PATH CONTAINS PC IDS, RTs and INCHI of SMRT Database
     inputPath = 'resources/'
