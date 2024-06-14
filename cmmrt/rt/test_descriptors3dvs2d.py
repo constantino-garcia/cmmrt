@@ -46,7 +46,7 @@ def main():
     try:
         pc_id_sdf_path = f"{sdf_path}{pc_id}.sdf"
         if not os.path.exists(pc_id_sdf_path):
-            build_data.download_sdf_pubchem(pc_id,sdf_path)
+            build_data.download_sdf_pubchem(pc_id,sdf_path, sdf_type=build_data.SDFType.THREE_D)
         
     except Exception as e:
         pc_id_sdf_path = None

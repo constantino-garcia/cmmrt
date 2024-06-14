@@ -110,7 +110,7 @@ def main():
                 if pc_id != 'None' and pc_id != '--':
                     pc_id_sdf_path = f"{sdf_path}{pc_id}.sdf"
                     if not os.path.exists(pc_id_sdf_path):
-                        build_data.download_sdf_pubchem(pc_id,sdf_path)
+                        build_data.download_sdf_pubchem(pc_id,sdf_path, sdf_type=build_data.SDFType.THREE_D)
                 else:
                     pc_id_sdf_path = None
             except Exception as e:

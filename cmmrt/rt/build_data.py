@@ -24,6 +24,7 @@
 import urllib.request,urllib.error, json 
 import time
 import os
+import requests
 from alvadesccliwrapper.alvadesc import AlvaDesc
 
 NUMBER_FPVALUES = 2214
@@ -36,8 +37,12 @@ outputPath = '/home/ceu/research/repos/cmm_rt_shared/metlin_ims/'
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem.rdmolops import FastFindRings
+from enum import Enum
 
 
+class SDFType(Enum):
+    TWO_D = 2
+    THREE_D = 3
 
 def list_of_ints_from_str(big_int_str):
     ints_list = [int(d) for d in str(big_int_str)]
@@ -149,18 +154,19 @@ def is_in_lipidMaps(inchi_key):
     except Exception as e:
         raise e
 
-def download_sdf_pubchem(pc_id, output_path):
+def download_sdf_pubchem(pc_id, output_path, sdf_type:SDFType = SDFType.THREE_D):
     """ 
         Get SDF file from the pubchem identifier. It retries the call 3 times if the request is not responded.
 
         Syntax
         ------
-          str = get_inchi_and_inchi_key_from_pubchem(pc_id, output_path)
+          str = download_sdf_pubchem(pc_id, output_path)
 
         Parameters
         ----------
             [in] pc_id: PC_ID integer corresponding to the pubchem identifier
             [out] output_path: file path to save the corresponding {pc_id}.sdf file
+            [in] sdf_type: SDFType enum to specify the type of SDF file [TWO_D, THREE_D]
 
         Returns
         -------
@@ -176,6 +182,11 @@ def download_sdf_pubchem(pc_id, output_path):
           >>> inchi_key = get_inchi_key_from_pubchem(1,'.')
     """
     url_pubchem="https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/" + str(pc_id) + "/SDF"
+    if sdf_type == SDFType.TWO_D:
+        pass
+    else:
+        url_pubchem = url_pubchem + "?record_type=3d"
+
     with urllib.request.urlopen(url_pubchem) as response:
         content = response.read().decode("utf-8")
 
@@ -185,6 +196,76 @@ def download_sdf_pubchem(pc_id, output_path):
             file.write(content)
             return
 
+def get_inchi_from_smiles(smiles):
+    """
+    Generates the InChI (International Chemical Identifier) from a given SMILES string.
+
+    Syntax:
+        inchi = get_inchi_from_smiles(smiles)
+
+    Parameters:
+        smiles (str): A SMILES (Simplified Molecular Input Line Entry System) string representing the chemical structure.
+
+    Returns:
+        str: The corresponding InChI representation of the chemical structure.
+
+    Exceptions:
+        None
+
+    Example:
+        >>> get_inchi_from_smiles("CCO")
+        'InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3'
+
+    Note:
+        This function relies on the RDKit library for chemical structure manipulation.
+    """
+    mol = Chem.MolFromSmiles(smiles)
+
+    inchi = Chem.MolToInchi(mol, options='-SNon')
+    return inchi
+
+def get_pubchemid_from_inchi(inchi):
+    """ 
+        Get SDF file from the inchi. It retries the call 3 times if the request is not responded.
+
+        Syntax
+        ------
+          str = download_sdf_pubchem_from_inchi(inchi)
+
+        Parameters
+        ----------
+            [in] pc_id: PC_ID integer corresponding to the pubchem identifier
+            [out] output_path: file path to save the corresponding {pc_id}.sdf file
+            [in] sdf_type: SDFType enum to specify the type of SDF file [TWO_D, THREE_D]
+
+        Returns
+        -------
+            None
+
+        Exceptions
+        ----------
+          Exception:
+            If the inchi is not found in pubchem
+
+        Example
+        -------
+          >>> inchi_key = get_inchi_key_from_pubchem("InChI=1S/C7H6O2/c8-7(9)6-4-2-1-3-5-6/h1-5H,(H,8,9)")
+    """
+    # URL for the POST request
+    url_pubchem = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/inchi/cids/TXT"
+
+    # Body of the POST request
+    post_body_data = {'inchi': inchi}
+
+    # Making the POST request
+    response = requests.post(url_pubchem, data=post_body_data)
+
+    # Extracting CID from the response
+    cid = response.text.strip()  # Removing leading/trailing whitespace
+    if cid:
+        return int(cid)
+    else:
+        raise Exception('INCHI NOT FOUND: ' + inchi + ' in the url ' + url_pubchem)
 
 def get_inchi_and_inchi_key_from_pubchem(pc_id):
     """ 
@@ -815,7 +896,7 @@ def main():
     except Exception as e:
         print("Test FAIL. Check the LM ID of inchi key RDHQFKQIGNGIED-UHFFFAOYSA-N" + e)
     try: 
-        inchi_key = get_lm_id_from_inchi_key("asd")
+        lm_id = get_lm_id_from_inchi_key("asd")
         print("Test FAIL. Check the LM ID of inchi key RDHQFKQIGNGIED-UHFFFAOYSA-N" + e)
     except Exception as e:
         print("Test PASS Checking wrong inchi keys in LM ID. ")
@@ -840,12 +921,12 @@ def main():
     except Exception as e:
         print("Test PASS Checking wrong inchi keys in CLASSYFIRE ")
     try: 
-        inchi_key = is_a_lipid_from_classyfire("asd","asd")
+        is_a_lipid = is_a_lipid_from_classyfire("asd","asd")
         print("Test FAIL. Check the classifcation of inchi key" + str(e))
     except Exception as e:
         print("Test PASS Checking wrong inchi keys in CLASSYFIRE ")
     try: 
-        inchi_key = is_a_lipid_from_classyfire("InChI=1S/C6H9N3S/c1-3-4-8-6(10-2)9-5-7/h3H,1,4H2,2H3,(H,8,9)", "QTNZEFGUDULPSY-UHFFFAOYSA-N")
+        is_a_lipid = is_a_lipid_from_classyfire("InChI=1S/C6H9N3S/c1-3-4-8-6(10-2)9-5-7/h3H,1,4H2,2H3,(H,8,9)", "QTNZEFGUDULPSY-UHFFFAOYSA-N")
         print("Test FAIL. Check the classification of inchi key" + str(e))
     except Exception as e:
         if e.code == 500:
@@ -853,11 +934,14 @@ def main():
         else:
             print("Test FAIL. Check the LM ID of inchi key" + str(e))
     try: 
-        inchi_key = is_a_lipid_from_classyfire("InChI=1S/C16H20FN3O3S/c1-12(2)24(21,22)20-10-8-16(17,9-11-20)15-18-14(19-23-15)13-6-4-3-5-7-13/h3-7,12H,8-11H2,1-2H3", "DSMCTAYHDQSAIU-UHFFFAOYSA-N")
-        print("Test FAIL. Check the classification of inchi key: ")
+        is_a_lipid = is_a_lipid_from_classyfire("InChI=1S/C16H20FN3O3S/c1-12(2)24(21,22)20-10-8-16(17,9-11-20)15-18-14(19-23-15)13-6-4-3-5-7-13/h3-7,12H,8-11H2,1-2H3", "DSMCTAYHDQSAIU-UHFFFAOYSA-N")
+        if is_a_lipid:
+            print("Test FAIL. Check the classification of inchi key: ")
+        else:
+            print("Test PASS Checking not a lipid DSMCTAYHDQSAIU-UHFFFAOYSA-N")
     except Exception as e:
         if e.code == 500:
-            print("Test PASS Checking wrong inchi keys in CLASSYFIRE of a compound with inchi key QTNZEFGUDULPSY-UHFFFAOYSA-N")
+            print("Test WRONG checking if DSMCTAYHDQSAIU-UHFFFAOYSA-N is a lipid")
         else:
             print("Test FAIL. Check the LM ID of inchi key" + + str(e))
     print("=================================================================.")
@@ -869,6 +953,38 @@ def main():
         print("Test PASS Download SDF of Pubchem id: 2")
     except Exception as e:
         print("Test FAIL. Check lipids in classyfire" + str(e))
+    
+    print("=================================================================.")
+    print("Test Case 16: Get PC ID From INCHI")
+    print("=================================================================.")
+    try: 
+        
+        pc_id = get_pubchemid_from_inchi("InChI=1S/C7H6O2/c8-7(9)6-4-2-1-3-5-6/h1-5H,(H,8,9)")
+        if int(pc_id) == 243:
+            print("Test PASS Download SDF of Pubchem id: 2")
+        else:
+            print("Test FAIL. Check the pubchem id of inchi key")
+    except Exception as e:
+        print("Test FAIL. Check lipids in classyfire" + str(e))
+
+
+    print("=================================================================")
+    print("Test Case 17: Get InChI From SMILES")
+    print("=================================================================")
+    try:
+        smiles = "CCO"
+        expected_inchi = "InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3"
+        obtained_inchi = get_inchi_from_smiles(smiles)
+        
+        if obtained_inchi == expected_inchi:
+            print("Test PASS: Obtained InChI matches the expected InChI.")
+        else:
+            print("Test FAIL: Obtained InChI does not match the expected InChI.")
+            print("Expected InChI:", expected_inchi)
+            print("Obtained InChI:", obtained_inchi)
+    except Exception as e:
+        print("Test FAIL: An exception occurred.")
+        print(e)
     
 
 if __name__ == "__main__":
