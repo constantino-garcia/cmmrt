@@ -26,12 +26,12 @@ import time
 import os
 import requests
 from alvadesccliwrapper.alvadesc import AlvaDesc
+from typing import Tuple
+from typing import Any
 
 NUMBER_FPVALUES = 2214
 NUMBER_DESCRIPTORS = 5666
-#ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
 ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
-#outputPath = '/home/alberto/repos/cmmrt/cmmrt/rt/resources/'
 outputPath = '/home/ceu/research/repos/cmm_rt_shared/metlin_ims/'
 
 from rdkit import Chem
@@ -43,6 +43,21 @@ from enum import Enum
 class SDFType(Enum):
     TWO_D = 2
     THREE_D = 3
+
+class FingerprintType(Enum):
+    '''
+    Enum class to specify the type of fingerprint. ECFP, MACCSFP or PFP are from AlvaDesc
+    MORGAN are RDKIT fingerprints
+    MAP4 are from Reymond group (https://github.com/reymond-group/map4)
+    MHFP6 are from Reymond group (https://github.com/reymond-group/mhfp)
+    '''
+    ECFP = "ECFP"
+    MACCSFP = "MACCSFP"
+    PFP = "PFP"
+    MORGAN = "MORGAN"
+    MAP4 = "MAP4"
+    MHFP6 = "MHFP6"
+    
 
 def list_of_ints_from_str(big_int_str):
     ints_list = [int(d) for d in str(big_int_str)]
@@ -426,20 +441,92 @@ def check_fingerprint_type(fingerprintType):
 
 
 def get_morgan_fingerprint_rdkit(smiles):
+    """
+    Generates the Morgan fingerprint from a given SMILES string.
+    
+    Syntax:
+        fingerprint = get_morgan_fingerprint_rdkit(smiles)
+    Parameters:
+        smiles (str): A SMILES (Simplified Molecular Input Line Entry System) string representing the chemical structure.
+    Returns:
+        str: The corresponding Morgan fingerprint of the chemical structure.
+    Exceptions:
+        ValueError if smiles does not correspond to a molecule.
 
-    # Convert SMILES to RDKit Mol object
-    mol = Chem.MolFromSmiles(smiles)
+    """
+
     mol = Chem.MolFromSmiles(smiles, sanitize=False)
     mol.UpdatePropertyCache()
     FastFindRings(mol)
-    # Generate Morgan fingerprint with a radius of 2
-    fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius=2, nBits=1024)
+
+    generator = AllChem.GetMorganGenerator(radius=2, fpSize=1024) 
+    fp = generator.GetFingerprint(mol)
 
     return fp.ToBitString()
 
+def get_map4_fingerprint(smiles):
+    """
+    NOT WORKING BECAUSE OF THE IMPORT OF TMAP (https://github.com/reymond-group/tmap)
+    Generates the MAP4 fingerprint from a given SMILES string.
+
+    Syntax:
+        fingerprint = get_map4_fingerprint(smiles)
+
+    Parameters:
+        smiles (str): A SMILES (Simplified Molecular Input Line Entry System) string representing the chemical structure.
+
+    Returns:
+        str: The corresponding MAP4 fingerprint of the chemical structure.
+
+    Exceptions:
+        ValueError if smiles does not correspond to a molecule.
+
+    Example:
+        >>> get_map4_fingerprint("CCO")
+        
+    """
+
+    from map4 import MAP4Calculator
+    dim = 1024
+
+    MAP4 = MAP4Calculator(dimensions=dim)
+    mol = Chem.MolFromSmiles(smiles, sanitize=False)
+    mol.UpdatePropertyCache()
+    FastFindRings(mol)
+
+    map4 = MAP4.calculate(mol)
+    fp = MAP4.calculate(mol)
+    return fp
+
+def get_mhfp6_fingerprint(smiles):
+    """
+    Generates the MHFP6 fingerprint from a given SMILES string.
+
+    Syntax:
+        fingerprint = get_mhfp6_fingerprint(smiles)
+
+    Parameters:
+        smiles (str): A SMILES (Simplified Molecular Input Line Entry System) string representing the chemical structure.
+
+    Returns:
+        str: The corresponding MHFP6 fingerprint of the chemical structure.
+
+    Exceptions:
+        ValueError if smiles does not correspond to a molecule.
+
+    Example:
+        >>> get_mhfp6_fingerprint("CCO")
+        
+    """
+
+    from mhfp.encoder import MHFPEncoder
+    mhfp_encoder = MHFPEncoder()
+    
+    fp = mhfp_encoder.encode(smiles)
+    return fp
 
 
-def get_fingerprint(aDesc, mol_structure_path=None, smiles=None, fingerprint_type='ECFP', fingerprint_size = 1024):
+def get_fingerprint(aDesc, mol_structure_path=None, smiles=None, fingerprint_type: FingerprintType = FingerprintType.ECFP, fingerprint_size = 1024):
     """ 
         Generate the the specified type Fingerprint from a molecule structure file
 
@@ -471,16 +558,14 @@ def get_fingerprint(aDesc, mol_structure_path=None, smiles=None, fingerprint_typ
         -------
           >>> pfp_fingerprint = get_fingerprint((ALVADESC_LOCATION),outputPath + "1.sdf", None, 'PFP')
     """
-    if not fingerprint_type in ('ECFP','PFP','MACCSFP'):
-        raise TypeError("Fingerprint format not valid. It should be ECFP or PFP or MACCSFP")
-    if mol_structure_path==None:
+    if mol_structure_path==None and smiles != None:
         aDesc.set_input_SMILES(smiles)
-    else:
+    elif mol_structure_path != None:
         file_type = get_file_type(mol_structure_path)
         aDesc.set_input_file(mol_structure_path, file_type)
-    # TESTING A REGULAR SMILES HARDCODED
-    #aDesc.set_input_SMILES(['CC(=O)OC1=CC=CC=C1C(=O)O'])
-    if not aDesc.calculate_fingerprint(fingerprint_type, fingerprint_size):
+    else:
+        raise ValueError("SDF or SMILES should be specified")
+    if not aDesc.calculate_fingerprint(fingerprint_type.value, fingerprint_size):
         raise RuntimeError('AlvaDesc Error ' + aDesc.get_error())
     else:
         fingerprint = aDesc.get_output()[0]
@@ -515,11 +600,13 @@ def get_descriptors(aDesc, mol_structure_path=None, smiles=None):
         -------
           >>> descriptors = get_descriptors(AlvaDesc(ALVADESC_LOCATION),outputPath + "1.sdf")
     """
-    if mol_structure_path==None:
+    if mol_structure_path==None and smiles != None:
         aDesc.set_input_SMILES(smiles)
-    else:
+    elif mol_structure_path != None:
         file_type = get_file_type(mol_structure_path)
         aDesc.set_input_file(mol_structure_path, file_type)
+    else:
+        raise ValueError("SDF or SMILES should be specified")
     if not aDesc.calculate_descriptors('ALL'):
         raise RuntimeError('AlvaDesc Error ' + aDesc.get_error())
     else:
@@ -557,9 +644,9 @@ def generate_vector_fingerprints(aDesc, mol_structure_path = None, smiles = None
           >>> fingerprints_pubchem1 = generate_vector_fingerprints(AlvaDesc(ALVADESC_LOCATION),outputPath + "1.sdf")
     """
 
-    ECFP_fingerprint = get_fingerprint(aDesc, mol_structure_path, smiles, 'ECFP')
-    MACCSFP_fingerprint = get_fingerprint(aDesc, mol_structure_path, smiles, 'MACCSFP')
-    PFP_fingerprint = get_fingerprint(aDesc, mol_structure_path, smiles, 'PFP')
+    ECFP_fingerprint = get_fingerprint(aDesc, mol_structure_path, smiles, FingerprintType.ECFP)
+    MACCSFP_fingerprint = get_fingerprint(aDesc, mol_structure_path, smiles, FingerprintType.MACCSFP)
+    PFP_fingerprint = get_fingerprint(aDesc, mol_structure_path, smiles, FingerprintType.PFP)
 
 
     ECFP_ints_list = list_of_ints_from_str(ECFP_fingerprint)
@@ -572,7 +659,12 @@ def generate_vector_fingerprints(aDesc, mol_structure_path = None, smiles = None
     fingerprints.extend(PFP_fingerprint)
     return fingerprints
 
-def generate_vector_fps_descs(aDesc, mol_structure_path=None, smiles = None, fingerprint_types = ("ECFP", "MACCSFP", "PFP"), descriptors = True):
+def generate_vector_fps_descs(
+    aDesc, 
+    mol_structure_path=None, 
+    smiles = None, 
+    fingerprint_types: Tuple[FingerprintType, ...] = (FingerprintType.ECFP, FingerprintType.MACCSFP, FingerprintType.PFP), 
+    descriptors = True):
     """ 
         Generate an array containing binary values of the descriptors and fingerprints ECFP, MACCSFP and PFP in in that order. 
 
@@ -585,7 +677,7 @@ def generate_vector_fps_descs(aDesc, mol_structure_path=None, smiles = None, fin
             [in] aDesc (AlvaDesc instance): instance of the aDesc client
             [in] mol_structure_path (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
             [in] smiles (str): SMILES representing the molecule
-            [in] fingerprints (tuple of Strings): Fingerprints to be calculated
+            [in] fingerprints (tuple of FingerprintType): Fingerprints to be calculated
             [in] descriptors (Boolean): include ALL descriptors
 
 
@@ -615,7 +707,7 @@ def generate_vector_fps_descs(aDesc, mol_structure_path=None, smiles = None, fin
         result_vector.extend(descriptors_list)
     if isinstance(fingerprint_types,tuple):
         for fingerprint_type in fingerprint_types:
-            check_fingerprint_type(fingerprint_type)
+            
             fingerprint_str = get_fingerprint(aDesc, mol_structure_path, smiles, fingerprint_type)
             fingerprint_vector = list_of_ints_from_str(fingerprint_str)
 
@@ -718,11 +810,32 @@ def generate_vector_descriptors_CSV(aDesc, mol_structure_path, smiles = None, se
     return str_descriptors_csv
     
 
+def inchi_to_3d_structure_rdkit(inchi):
+    # Convert InChI to RDKit molecule object
+    mol = Chem.MolFromInchi(inchi)
+    if mol is None:
+        raise ValueError("Invalid InChI string")
+    
+    # Add hydrogen atoms to the molecule
+    mol = Chem.AddHs(mol)
+    
+    # Generate 3D coordinates
+    result = AllChem.EmbedMolecule(mol, AllChem.ETKDG())
+    if result == -1:
+        result = AllChem.EmbedMolecule(mol, useRandomCoords=True)
+    
+    # Optimize the 3D structure
+    AllChem.UFFOptimizeMolecule(mol)
+    
+    return mol
+
+
 def main():
     # VARIABLES FOR TESTINS. CHANGE THE PROGRAM AND FILE PATHS IF YOU RUN IT LOCALLY
     aDescPath = ALVADESC_LOCATION
     aDesc = AlvaDesc(aDescPath)
-    sdfPath = outputPath + "SDF/"
+    sdfPath = '/home/ceu/research/repos/cmm_rt_shared/SDF/'
+    sdfPath = sdfPath + "3D/"
     inputFile ="1.sdf"
 
     print("=================================================================.")
@@ -740,7 +853,7 @@ def main():
     print("Test Case 2: ECFP of pubchem id1")
     print("=================================================================.")
     expResult = "0000001000000000000000000000000000000000000000000000000000000000000000000000010000100000000010000000010000000000001011000000000000010000000000000001000000000000000000000000000000000000000000000000000010000000000000000000000000000000000001000010000001000100000010000000000000001100010000000000000000100000000000000001000010000000000000000000000000000100000100000000000000000000000000010000010000000000000000001001000000000000100000000000000000000000100000001000000001000000000000000010000000010000000000000000000000000000000000000000000100000000000000000100000000000000000000000000000000000100000000000010000000000010001000001001000000010000000000000000000011100000000000000000010000010000000000001000001000000000000000000000000000000000000000100000000000000000000000000000000000000000000001110000000000000000000001000001000000000000000000000000000000010100000000000000000100000000000000000000000000000010000000000000001010000000001000101000000000000000000000100000000000000000000000000000000000010000000000000001000000000000"
-    actualResult = get_fingerprint(aDesc, sdfPath + inputFile, fingerprint_type='ECFP')
+    actualResult = get_fingerprint(aDesc, sdfPath + inputFile, fingerprint_type=FingerprintType.ECFP)
     
     if expResult == actualResult:
         print("Test PASS. ECFP of pubchem id1 correctly calculated")
@@ -751,7 +864,7 @@ def main():
     print("Test Case 3: MACCSFP of pubchem id1")
     print("=================================================================.")
     expResult = "0000000000000000000000000000010000000000000000001000000000000000000000000100000000001100100010100001000000010001001000000110010000010001000110000101100111101111100100"
-    actualResult = get_fingerprint(aDesc, sdfPath + inputFile, fingerprint_type='MACCSFP')
+    actualResult = get_fingerprint(aDesc, sdfPath + inputFile, fingerprint_type=FingerprintType.MACCSFP)
     
     if expResult == actualResult:
         print("Test PASS. MACCSFP of pubchem id1 correctly calculated")
@@ -762,7 +875,7 @@ def main():
     print("Test Case 4: PFP of pubchem id1")
     print("=================================================================.")
     expResult = "0000000000000000000000000000000000000000000000000000000000000000000000000000010000100000000010100000010000000000001010000001000000010010000000000000000000010000000000000000000000000100000000000001000000000000000000000000000000000000000000000010100001000000000010000100010000001100010000000000001000100000000100000000100011000000000000100000000001000100000000000000000000000000000000010000010000000000000000001001000000000000100000000000000000000000100000001010000001000000000000000000000101001000000000000000000000000000000000000000000100010000000000000100000000000000000000010010000000000100000000000010000000000010001000001000000000010000000000000000000111000000000000001000000000010000000000000000001000000000000000000000000000000010010000110100001000000000000000000000000000000000000000110000000000000000000001000001000000000000000000000000000000000100000000000000000000100000000010000100000000000010000000010000000010001000001000100000000000000000000000100000000000000001000000000100000000010000000000000001000000000000"
-    actualResult = get_fingerprint(aDesc, sdfPath + inputFile, fingerprint_type='PFP')
+    actualResult = get_fingerprint(aDesc, sdfPath + inputFile, fingerprint_type=FingerprintType.PFP)
     
     if expResult == actualResult:
         print("Test PASS. PFP of pubchem id1 correctly calculated")
@@ -797,15 +910,16 @@ def main():
     print("=================================================================.")
     print("Test Case 7A: Fingerprints of SMILES")
     print("=================================================================.")
+    smiles = 'CC(=O)OC(CC(=O)[O-])C[N+](C)(C)C'
     expResult = [0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,0,0,0,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,1,0,0,0,0,0,0,1,1,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,1,0,0,0,0,1,0,1,1,0,0,1,1,1,1,0,1,1,1,1,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,1,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0]
     
-    actualResult = generate_vector_fingerprints(aDesc, smiles = 'CC(=O)OC(CC(=O)[O-])C[N+](C)(C)C')
+    actualResult = generate_vector_fingerprints(aDesc, smiles = smiles)
     
     
     if expResult == actualResult:
         print("Test PASS. The CSV Vector from fingerprints has been correctly implemented.")
     else:
-        print("Test FAIL. Check the method generate_vector_fingerprints_CSV(aDesc,  smiles = 'CC(=O)OC(CC(=O)[O-])C[N+](C)(C)C', sep)." + " RESULT: " + str(actualResult))
+        print("Test FAIL. Check the method generate_vector_fingerprints_CSV(aDesc,  smiles = smiles, sep)." + " RESULT: " + str(actualResult))
 
 
     print("=================================================================.")
@@ -813,15 +927,40 @@ def main():
     print("=================================================================.")
     expResult = "0100000000010000000000000000000001000000000000000000000000000000000001000000000010000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000100000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000001100000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000101000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000010000000000000000000000000000000000000000000010000000000000000000100000000000000000000000000000000000000000000000000000000000000000000010000000000000000000001000000000000000000000000000000100000010000000000000000000000000000001000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000001000000"
     
-    actualResult = get_morgan_fingerprint_rdkit(smiles = 'CC(=O)OC(CC(=O)[O-])C[N+](C)(C)C')
+    actualResult = get_morgan_fingerprint_rdkit(smiles = smiles)
     
     
     if expResult == actualResult:
         print("Test PASS. The Morgan Fingerprint has been correctly implemented.")
     else:
         print("Test FAIL. Check the method get_morgan_fingerprint_rdkit(smiles)." + " RESULT: " + str(actualResult))
+    
+    
+    print("=================================================================.")
+    print("Test Case 7C: MAP4 Fingerprints of SMILES")
+    print("=================================================================.")
+    
+    expResult = ""
 
+    actualResult = get_map4_fingerprint(smiles = smiles)
+    
+    if expResult == actualResult:
+        print("Test PASS. The MAP4 Fingerprint has been correctly implemented.")
+    else:
+        print("Test FAIL. Check the method get_map4_fingerprint_rdkit(smiles)." + " RESULT: " + str(actualResult))
+    '''
+    print("=================================================================.")
+    print("Test Case 7D: MHFP6 Fingerprints of SMILES")
+    print("=================================================================.")
+    expResult = ""
 
+    actualResult = get_mhfp6_fingerprint(smiles = smiles)
+    print(actualResult)
+    if expResult == actualResult:
+        print("Test PASS. The MAP4 Fingerprint has been correctly implemented.")
+    else:
+        print("Test FAIL. Check the method get_map4_fingerprint_rdkit(smiles)." + " RESULT: " + str(actualResult))
+    '''
     print("=================================================================.")
     print("Test Case 8: Descriptors and Fingerprints of pubchem id1")
     print("=================================================================.")
@@ -857,16 +996,7 @@ def main():
     print("=================================================================.")
     print("Test Case 11: Checking fingerpints types")
     print("=================================================================.")
-    try: 
-        check_fingerprint_type("PFP")
-    except Exception as e:
-        print("Test FAIL. Check the method check_fingerprint_type(fingerprintType). It should accept PFP, ECFP and MACCSFP values" + e)
-    try: 
-        check_fingerprint_type("OPFP")
-        print("Test FAIL. Check the method check_fingerprint_type(fingerprintType). It should not accept any other value than PFP, ECFP and MACCSFP" + e)
-    except Exception as e:
-        print("Test PASS Checking fingerpints types. ")
-    
+
     print("=================================================================.")
     print("Test Case 12: Checking INCHI KEY from Pubchem ID ")
     print("=================================================================.")
@@ -877,7 +1007,7 @@ def main():
         else: 
             print("Test FAIL. Check the INCHI KEY of pubchem 1" + e)
     except Exception as e:
-        print("est FAIL. Check the call to pubchem API" + e)
+        print("Test FAIL. Check the call to pubchem API" + e)
     try: 
         inchi, inchi_key = get_inchi_and_inchi_key_from_pubchem("asd")
         print("Test FAIL. Check the method get_inchi_and_inchi_key_from_pubchem(inchi_key)")

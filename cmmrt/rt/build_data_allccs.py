@@ -24,14 +24,14 @@ from alvadesccliwrapper.alvadesc import AlvaDesc
 import csv
 import os
 import build_data
+from rdkit import Chem
 
 #ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
 ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
 
 def main():
-    #inputPath = '/home/ceu/OneDrive/research/CCS_in_CMM/metlin_ccs/CCS-Publication-V3/'
-    inputPath = '/home/ceu/OneDrive/research/CCS_in_CMM/metlin_ccs/'
-    outputPath = '/home/ceu/research/repos/cmm_rt_shared/dataset_20240408/'
+    inputPath = '/home/ceu/OneDrive/research/CCS_in_CMM/allccs/'
+    outputPath = '/home/ceu/research/repos/cmm_rt_shared/allccs/2D/'
     sdf_path = f"{outputPath}SDF/"
     #Constants
     NUMBER_FPVALUES=2214
@@ -103,21 +103,37 @@ def main():
         writerDescriptorsAndFingerPrintsVectorized = csv.DictWriter(outputFileDescriptorsAndFingerPrintsVectorized, fieldnames = descriptorsAndFingerPrintsVectorizedFieldNames)
         writerDescriptorsAndFingerPrintsVectorized.writeheader()
 
+        descriptors_dict = {}
+        maccsfp_dict = {}
+        ecfp_dict = {}
+        pfp_dict = {}
+        morganfp_dict = {}
+        vector_fingerprints_dict = {}
 
         for row in reader:
             inchi = row["InChI"]
+            if inchi == None:
+                break
+            mol = Chem.MolFromInchi(inchi)
+            inchi_key = Chem.MolToInchiKey(mol)
+            smiles = Chem.MolToSmiles(mol)
             try:
                 pc_id = build_data.get_pubchemid_from_inchi(inchi)
                 pc_id_sdf_path = f"{sdf_path}{pc_id}.sdf"
                 if not os.path.exists(pc_id_sdf_path):
-                    build_data.download_sdf_pubchem(pc_id,sdf_path, sdf_type=build_data.SDFType.THREE_D)
-                
+                    #build_data.download_sdf_pubchem(pc_id,sdf_path, sdf_type=build_data.SDFType.THREE_D)
+                    build_data.download_sdf_pubchem(pc_id,sdf_path, sdf_type=build_data.SDFType.TWO_D)
                 
             except Exception as e:
                 pc_id_sdf_path = None
 
             # Do directly the copy of all elements of the row
-            descriptors = build_data.get_descriptors(aDesc,mol_structure_path=pc_id_sdf_path)
+            
+            if inchi_key in descriptors_dict:
+                descriptors = descriptors_dict[inchi_key]
+            else:
+                descriptors = build_data.get_descriptors(aDesc,mol_structure_path=pc_id_sdf_path,smiles=smiles)
+                descriptors_dict[inchi_key] = descriptors
             partialDictDescriptorsRow = row.copy()
             
             for i in range(0,len(listDescriptors)):
@@ -127,13 +143,28 @@ def main():
             partialDictDescriptorsAndFingerprintsRow = partialDictDescriptorsRow.copy()
             partialDictDescriptorsAndFingerprintsVectorizedRow = partialDictDescriptorsRow.copy()
             # Add fingerprints
-            fingerprint_ecfp = build_data.get_fingerprint(aDesc,mol_structure_path=pc_id_sdf_path, fingerprint_type='ECFP')
-            fingerprint_maccs = build_data.get_fingerprint(aDesc,mol_structure_path=pc_id_sdf_path, fingerprint_type='MACCSFP')
-            fingerprint_pfp = build_data.get_fingerprint(aDesc,mol_structure_path=pc_id_sdf_path, fingerprint_type='PFP')
-            try:
-                fingerprint_morgan = build_data.get_morgan_fingerprint_rdkit(chemicalStructureFile=pc_id_sdf_path)
-            except Exception as e: 
-                fingerprint_morgan = "NA"
+            
+            if inchi_key in ecfp_dict:
+                fingerprint_ecfp = ecfp_dict[inchi_key]
+                fingerprint_maccs = maccsfp_dict[inchi_key]
+                fingerprint_pfp = pfp_dict[inchi_key]
+                fingerprint_morgan = morganfp_dict[inchi_key]
+                vector_fingerprints = vector_fingerprints_dict[inchi_key]
+            else:
+                fingerprint_ecfp = build_data.get_fingerprint(aDesc,mol_structure_path=pc_id_sdf_path,smiles=smiles, fingerprint_type='ECFP')
+                ecfp_dict[inchi_key] = fingerprint_ecfp
+                fingerprint_maccs = build_data.get_fingerprint(aDesc,mol_structure_path=pc_id_sdf_path,smiles=smiles, fingerprint_type='MACCSFP')
+                maccsfp_dict[inchi_key] = fingerprint_maccs
+                fingerprint_pfp = build_data.get_fingerprint(aDesc,mol_structure_path=pc_id_sdf_path,smiles=smiles, fingerprint_type='PFP')
+                pfp_dict[inchi_key] = fingerprint_pfp
+                try:
+                    fingerprint_morgan = build_data.get_morgan_fingerprint_rdkit(chemicalStructureFile=pc_id_sdf_path,smiles=smiles)
+                except Exception as e: 
+                    fingerprint_morgan = "NA"
+                morganfp_dict[inchi_key] = fingerprint_morgan
+                vector_fingerprints = build_data.generate_vector_fingerprints(aDesc,mol_structure_path=pc_id_sdf_path,smiles=smiles)
+                vector_fingerprints_dict[inchi_key] = vector_fingerprints
+
             partialDictDescriptorsAndFingerprintsRow['ECFP'] = fingerprint_ecfp
             partialDictDescriptorsAndFingerprintsRow['MACCSFP'] = fingerprint_maccs
             partialDictDescriptorsAndFingerprintsRow['PFP'] = fingerprint_pfp
@@ -141,7 +172,7 @@ def main():
             partialDictDescriptorsAndFingerprintsRow['MorganFP'] = fingerprint_morgan
             writerDescriptorsAndFingerprints.writerow(partialDictDescriptorsAndFingerprintsRow)
 
-            vector_fingerprints = build_data.generate_vector_fingerprints(aDesc,mol_structure_path=pc_id_sdf_path)
+            vector_fingerprints = build_data.generate_vector_fingerprints(aDesc,mol_structure_path=pc_id_sdf_path,smiles=smiles)
             partialDictFP = row.copy()
             for i in range(0,NUMBER_FPVALUES):
                 header_name = "V" + str(i+1)

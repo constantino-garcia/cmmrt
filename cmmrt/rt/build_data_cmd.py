@@ -3,15 +3,15 @@
 
  
 """
-@contents :  This module contains functions to generate fingerprints and descriptors using alvaDesc program from the RepoRT database
+@contents :  This module contains functions to generate fingerprints and descriptors using alvaDesc program from the ALL_CCS database
 @project :  cmmrt (CEU Mass Mediator Retention Time)
 @program :  CEU Mass Mediator
-@file :  build_data_report.py
+@file :  build_data_descriptors.py
 @author :  Alberto Gil De la Fuente (alberto.gilf@gmail.com)
            Constantino García Martínez(constantino.garciama@ceu.es)
            
 
-@version :  0.0.3, 17 Abr 2024
+@version :  0.0.3, 26 November 2023
 @information : A valid license of AlvaDesc is necessary to generate the descriptors and fingerprints of chemical structures. 
 
 @copyright :  GNU General Public License v3.0
@@ -25,29 +25,63 @@ import csv
 import os
 import build_data
 from rdkit import Chem
+import argparse
 
 #ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
 ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
 
 def main():
-    inputPath = '/home/ceu/research/repos/cmm_rt_shared/report_20240417/'
-    outputPath = '/home/ceu/research/repos/cmm_rt_shared/report_20240417/2D/'
-    sdf_path = f"{inputPath}SDF/"
+    parser = argparse.ArgumentParser(description='Generate fingerprints and descriptors using AlvaDesc from any CSV file.')
+    parser.add_argument('--input_path', required=True, help='Input path containing the input file')
+    parser.add_argument('--input_file', required=True, help='Name of the input file')
+    parser.add_argument('--delimiter', default=',', help='Column delimiter for the input file. Use tab for \t')
+    parser.add_argument('--smiles_column_name', default=None, help='Name of the SMILES column')
+    parser.add_argument('--inchi_column_name', default=None, help='Name of the InChI column')
+    parser.add_argument('--pubchem_id_column_name', default=None, help='Name of the pubchem ID column')
+    parser.add_argument('--output_path', required=True, help='Output path for the result files')
+    parser.add_argument('--input_file_type', default='THREE_D', choices=['TWO_D', 'THREE_D'], help='Descriptor type: TWO_D or THREE_D')
+    
+
+    args = parser.parse_args()
+
+    inputPath = args.input_path
+    inputFileName = os.path.join(inputPath, args.input_file)
+    outputPath = args.output_path
+    smiles_column_name = args.smiles_column_name
+    inchi_column_name = args.inchi_column_name
+    pubchem_id_column_name = args.pubchem_id_column_name
+    input_file_type = args.input_file_type
+    input_file_type = getattr(build_data.SDFType, input_file_type)
+    delimiter = args.delimiter
+    if delimiter == 'tab':
+        delimiter = '\t'
+    sdf_path = "/home/ceu/research/repos/cmm_rt_shared/SDF"
+    
+    if input_file_type == build_data.SDFType.TWO_D:
+        outputPath = os.path.join(outputPath, "2D")
+        sdf_path = os.path.join(sdf_path, "2D")
+        
+    else:
+        outputPath = os.path.join(outputPath, "3D")
+        sdf_path = os.path.join(sdf_path, "3D")
+    
+    
+    vector_fingerprints_path = os.path.join(outputPath, "vector_fingerprints")
+    os.makedirs(vector_fingerprints_path, exist_ok=True)
+    os.makedirs(sdf_path, exist_ok=True)
+
     #Constants
     NUMBER_FPVALUES=2214
     # VARIABLES OF AlvaDesc Software
-
     aDesc = AlvaDesc(ALVADESC_LOCATION)
-    # INPUT PATH CONTAINS SMILES, INCHIS, CCS_Information of compounds of repoRT
     
-    inputFileName = inputPath + "unique_inchi_repoRT.tsv"
-    # inputFileName = inputPath + "RepoRT_0008_molecule_data.tsv"
-    # IT WILL TAKE SMILES to create a CSV file containing the vector with fingerprints (ECFP, MACCSFP and PFP) of each report_unique_inchis compound
+    # IT WILL TAKE SMILES to create a CSV file containing the vector with fingerprints (ECFP, MACCSFP and PFP) of each compound
+    base_fileName, fileExtension = os.path.splitext(args.input_file)
     
-    outputFileDescriptorsName = outputPath + "vector_fingerprints/report_unique_inchis_descriptors.csv"
-    outputFileDescriptorsAndFingerprintsName = outputPath + "vector_fingerprints/report_unique_inchis_descriptorsAndFingerprints.csv"
-    outputFileFingerprintsVectorizedName = outputPath + "vector_fingerprints/report_unique_inchis_vectorfingerprintsVectorized.csv"
-    outputFileDescriptorsAndFingerPrintsVectorizedName = outputPath + "vector_fingerprints/report_unique_inchis_descriptorsAndFingerprintsVectorized.csv"
+    outputFileDescriptorsName = os.path.join(os.path.join(vector_fingerprints_path, base_fileName + "_descriptors" + fileExtension))
+    outputFileDescriptorsAndFingerprintsName = os.path.join(os.path.join(vector_fingerprints_path, base_fileName + "_descriptorsAndFingerprints" + fileExtension))
+    outputFileFingerprintsVectorizedName = os.path.join(os.path.join(vector_fingerprints_path, base_fileName + "_vectorfingerprintsVectorized" + fileExtension))
+    outputFileDescriptorsAndFingerPrintsVectorizedName = os.path.join(os.path.join(vector_fingerprints_path, base_fileName + "_descriptorsAndFingerprintsVectorized" + fileExtension))
     if os.path.isfile(outputFileDescriptorsName):
         os.remove(outputFileDescriptorsName)
     if os.path.isfile(outputFileDescriptorsAndFingerprintsName):
@@ -58,11 +92,10 @@ def main():
         os.remove(outputFileDescriptorsAndFingerPrintsVectorizedName)
 
     with open(inputFileName) as csvfile:
-        reader = csv.DictReader(csvfile,delimiter='\t')
-
+        reader = csv.DictReader(csvfile,delimiter=delimiter,quotechar='"')
         # RUN A MOCK SDF TO OBTAIN DESCRIPTORS HEADERS
-        smiles="O=C(NCc1ccc(cc1)F)NCCCN1CCc2c1cccc2"
-        aDesc.set_input_SMILES(smiles)
+        inchi="O=C(NCc1ccc(cc1)F)NCCCN1CCc2c1cccc2"
+        aDesc.set_input_SMILES(inchi)
         aDesc.calculate_descriptors('ALL')
         listDescriptors = aDesc.get_output_descriptors()
 
@@ -77,6 +110,7 @@ def main():
         writerDescriptors = csv.DictWriter(outputFileDescriptors, fieldnames = descriptorFieldNames)
         writerDescriptors.writeheader()
 
+        '''
         # WRITER FOR FINGERPRINTS AND DESCRIPTORS
         descriptorsAndFingerPrintsFieldNames.append('ECFP')
         descriptorsAndFingerPrintsFieldNames.append('MACCSFP')
@@ -103,7 +137,7 @@ def main():
         outputFileDescriptorsAndFingerPrintsVectorized = open(outputFileDescriptorsAndFingerPrintsVectorizedName, 'w', newline='')
         writerDescriptorsAndFingerPrintsVectorized = csv.DictWriter(outputFileDescriptorsAndFingerPrintsVectorized, fieldnames = descriptorsAndFingerPrintsVectorizedFieldNames)
         writerDescriptorsAndFingerPrintsVectorized.writeheader()
-
+        '''
         descriptors_dict = {}
         maccsfp_dict = {}
         ecfp_dict = {}
@@ -112,41 +146,55 @@ def main():
         vector_fingerprints_dict = {}
 
         for row in reader:
-            smiles = row["smiles.std"]
-            inchi_report = row["inchi.std"]
-            inchi = build_data.get_inchi_from_smiles(smiles)
-            inchi_key = row["inchikey.std"]
-            try:
-                pc_id = None
-                pc_id = build_data.get_pubchemid_from_inchi(inchi)
-                pc_id_sdf_path = f"{sdf_path}{pc_id}.sdf"
-                if not os.path.exists(pc_id_sdf_path):
+            pc_id = None
+            if pubchem_id_column_name:
+                pc_id = row[pubchem_id_column_name]
+
+            if inchi_column_name:
+                inchi = row[inchi_column_name]
+                if inchi != None:
+                    mol = Chem.MolFromInchi(inchi)
+                    if not mol:
+                        continue
+                    smiles = Chem.MolToSmiles(mol)
+                    if not pc_id:
+                        try:
+                            pc_id = build_data.get_pubchemid_from_inchi(inchi)
+                        except Exception as e:
+                            pc_id = None
+            elif smiles_column_name:
+                smiles = row[smiles_column_name]
+                if not smiles:
+                    continue
+                mol = Chem.MolFromSmiles(smiles)
+                if not mol:
+                    continue
+                inchi = Chem.MolToInchi(mol)
+                if not pc_id:
                     try:
-                        #build_data.download_sdf_pubchem(pc_id,sdf_path, sdf_type=build_data.SDFType.THREE_D)
-                        build_data.download_sdf_pubchem(pc_id,sdf_path, sdf_type=build_data.SDFType.TWO_D)
+                        pc_id = build_data.get_pubchemid_from_inchi(inchi)
                     except Exception as e:
-                        # Obtain the 3D from the InChI and RDKIT
-                        #mol_3d_structure = build_data.inchi_to_3d_structure_rdkit(inchi_report)
-                        #with Chem.SDWriter(pc_id_sdf_path) as writer:
-                        #    writer.write(mol_3d_structure)
-                        mol_2d_structure = Chem.MolFromInchi(inchi)
-                        with Chem.SDWriter(pc_id_sdf_path) as writer:
-                            writer.write(mol_2d_structure)
-                
-            except Exception as e:
+                        pc_id = None
+            
+            inchi_key = Chem.MolToInchiKey(mol)
+            
+            if pc_id:
+                try:
+                    pc_id_sdf_path = f"{sdf_path}/{pc_id}.sdf"
+                    if not os.path.exists(pc_id_sdf_path):
+                        build_data.download_sdf_pubchem(pc_id,sdf_path, sdf_type=input_file_type)
+                    
+                except Exception as e:
+                    pc_id_sdf_path = None
+            else:
                 pc_id_sdf_path = None
-                # If the SDF file is not found, we skip the row and we log in in a new file called "missing_sdf.csv"
-                with open(outputPath + "missing_sdf.csv", 'a', newline='') as csvfile:
-                    writer = csv.DictWriter(csvfile, fieldnames = reader.fieldnames)
-                    writer.writerow(row)
-                continue
 
             # Do directly the copy of all elements of the row
             
             if inchi_key in descriptors_dict:
                 descriptors = descriptors_dict[inchi_key]
             else:
-                descriptors = build_data.get_descriptors(aDesc,mol_structure_path=pc_id_sdf_path,smiles=smiles)
+                descriptors = build_data.get_descriptors(aDesc, mol_structure_path=pc_id_sdf_path, smiles=smiles)
                 descriptors_dict[inchi_key] = descriptors
             partialDictDescriptorsRow = row.copy()
             
@@ -156,8 +204,8 @@ def main():
             writerDescriptors.writerow(partialDictDescriptorsRow)
             partialDictDescriptorsAndFingerprintsRow = partialDictDescriptorsRow.copy()
             partialDictDescriptorsAndFingerprintsVectorizedRow = partialDictDescriptorsRow.copy()
+            '''
             # Add fingerprints
-
             if inchi_key in ecfp_dict:
                 fingerprint_ecfp = ecfp_dict[inchi_key]
                 fingerprint_maccs = maccsfp_dict[inchi_key]
@@ -165,6 +213,7 @@ def main():
                 fingerprint_morgan = morganfp_dict[inchi_key]
                 vector_fingerprints = vector_fingerprints_dict[inchi_key]
             else:
+                
                 fingerprint_ecfp = build_data.get_fingerprint(aDesc,mol_structure_path=pc_id_sdf_path,smiles=smiles, fingerprint_type='ECFP')
                 ecfp_dict[inchi_key] = fingerprint_ecfp
                 fingerprint_maccs = build_data.get_fingerprint(aDesc,mol_structure_path=pc_id_sdf_path,smiles=smiles, fingerprint_type='MACCSFP')
@@ -176,9 +225,9 @@ def main():
                 except Exception as e: 
                     fingerprint_morgan = "NA"
                 morganfp_dict[inchi_key] = fingerprint_morgan
+                
                 vector_fingerprints = build_data.generate_vector_fingerprints(aDesc,mol_structure_path=pc_id_sdf_path,smiles=smiles)
                 vector_fingerprints_dict[inchi_key] = vector_fingerprints
-            
             
             partialDictDescriptorsAndFingerprintsRow['ECFP'] = fingerprint_ecfp
             partialDictDescriptorsAndFingerprintsRow['MACCSFP'] = fingerprint_maccs
@@ -186,16 +235,20 @@ def main():
             
             partialDictDescriptorsAndFingerprintsRow['MorganFP'] = fingerprint_morgan
             writerDescriptorsAndFingerprints.writerow(partialDictDescriptorsAndFingerprintsRow)
-
-            vector_fingerprints = build_data.generate_vector_fingerprints(aDesc,mol_structure_path=pc_id_sdf_path)
+            
+            
+            vector_fingerprints = build_data.generate_vector_fingerprints(aDesc,mol_structure_path=pc_id_sdf_path,smiles=smiles)
             partialDictFP = row.copy()
             for i in range(0,NUMBER_FPVALUES):
                 header_name = "V" + str(i+1)
                 partialDictFP[header_name] = vector_fingerprints[i]
+                
                 partialDictDescriptorsAndFingerprintsVectorizedRow[header_name] = vector_fingerprints[i]
+            
             writerFingerprintsVectorized.writerow(partialDictFP)
             writerDescriptorsAndFingerPrintsVectorized.writerow(partialDictDescriptorsAndFingerprintsVectorizedRow)
-
+            '''
+            
 
 if __name__ == "__main__":
     main()

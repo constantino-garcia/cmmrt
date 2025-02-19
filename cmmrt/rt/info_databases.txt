@@ -1,0 +1,167 @@
+ALLCCS: HECHO 2D y 3D
+
+INPUT: /home/ceu/research/repos/cmm_rt_shared/allccs
+
+OUTPUT: /home/ceu/research/repos/cmm_rt_shared/allccs
+
+FileName: AllCCS2_experimental_with_inchis.csv
+
+Smiles_column: 
+Inchi column: InChI
+
+Llamada:
+/bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
+--input_path /home/ceu/research/repos/cmm_rt_shared/allccs \
+--input_file AllCCS2_experimental_with_inchis.csv \
+--output_path /home/ceu/research/repos/cmm_rt_shared/allccs \
+--inchi_column_name InChI \
+--input_file_type TWO_D
+
+
+REPORT: HECHO en 2D y 3D
+INPUT: /home/ceu/research/repos/cmm_rt_shared/report_20240417
+
+OUTPUT: /home/ceu/research/repos/cmm_rt_shared/report_20240417
+
+FileName: AllCCS2_experimental_with_inchis.csv
+
+Smiles_column: smiles.std
+Inchi column: inchi.std
+
+Llamada:
+/bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
+--input_path /home/ceu/research/repos/cmm_rt_shared/report_20240417/ \
+--input_file unique_inchi_repoRT.tsv \
+--delimiter 'tab' \
+--output_path /home/ceu/research/repos/cmm_rt_shared/report_20240417/ \
+--smiles_column_name smiles.std \
+--inchi_column_name inchi.std \
+--input_file_type TWO_D
+
+
+
+
+METLIN_CCS: HECHO en 2D y 3D
+INPUT: /home/ceu/research/repos/cmm_rt_shared/metlin_ims
+
+OUTPUT: /home/ceu/research/repos/cmm_rt_shared/metlin_ims
+
+FileName: METLIN_IMS.tsv
+
+Smiles_column: smiles
+Inchi column: inchi
+pubchem_id_column_name: pubChem
+
+Llamada:
+/bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
+--input_path /home/ceu/research/repos/cmm_rt_shared/report_20240417/ \
+--input_file unique_inchi_repoRT.tsv \
+--output_path /home/ceu/research/repos/cmm_rt_shared/report_20240417/ \
+--smiles_column_name smiles.std \
+--inchi_column_name inchi \
+--pubchem_id_column_name pubChem \
+--input_file_type TWO_D
+
+
+
+CCSBASE: HECHO en 2D y 3D
+INPUT: /home/ceu/research/repos/cmm_rt_shared/ccsbase/
+
+OUTPUT: /home/ceu/research/repos/cmm_rt_shared/ccsbase/
+
+FileName: METLIN_IMS.tsv
+
+Smiles_column: SMI
+
+Llamada:
+/bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
+--input_path /home/ceu/research/repos/cmm_rt_shared/ccsbase/ \
+--input_file ccsbase.csv \
+--output_path /home/ceu/research/repos/cmm_rt_shared/ccsbase/ \
+--smiles_column_name SMI \
+--input_file_type THREE_D
+
+
+
+
+
+METLIN_LIPID_CCS: HECHOS 2D y 3D
+INPUT: /home/ceu/research/repos/cmm_rt_shared/metlin_lipidims
+
+OUTPUT: /home/ceu/research/repos/cmm_rt_shared/metlin_lipidims
+
+FileName: METLIN-CCS-Lipids.csv
+
+
+Inchi column: InChI
+pubchem_id_column_name: PubChem
+
+Llamada:
+/bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
+--input_path /home/ceu/research/repos/cmm_rt_shared/metlin_lipidims \
+--input_file METLIN-CCS-Lipids.csv \
+--output_path /home/ceu/research/repos/cmm_rt_shared/metlin_lipidims \
+--inchi_column_name InChI \
+--pubchem_id_column_name PubChem \
+--input_file_type THREE_D
+
+SMRT: Faltan 2D y 3D
+INPUT: /home/ceu/research/repos/cmm_rt_shared/smrt
+
+OUTPUT: /home/ceu/research/repos/cmm_rt_shared/smrt
+
+FileName: SMRT_dataset_full_info.csv
+
+
+Inchi column: inchi
+pubchem_id_column_name: pubchem
+
+Llamada:
+/bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
+--input_path /home/ceu/research/repos/cmm_rt_shared/smrt \
+--input_file SMRT_dataset_full_info.csv \
+--delimiter '|' \
+--output_path /home/ceu/research/repos/cmm_rt_shared/smrt \
+--inchi_column_name inchi \
+--pubchem_id_column_name pubchem \
+--input_file_type THREE_D
+
+/bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
+--input_path /home/ceu/research/repos/cmm_rt_shared/smrt \
+--input_file SMRT_dataset_full_info.csv \
+--delimiter '|' \
+--output_path /home/ceu/research/repos/cmm_rt_shared/smrt \
+--inchi_column_name inchi \
+--pubchem_id_column_name pubchem \
+--input_file_type TWO_D
+
+HMDB: 
+INPUT: /home/ceu/research/repos/cmm_rt_shared/hmdb
+
+OUTPUT: /home/ceu/research/repos/cmm_rt_shared/hmdb
+
+FileName: hmdb.csv
+
+/bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
+--input_path /home/ceu/research/repos/cmm_rt_shared/hmdb \
+--input_file hmdb.csv \
+--delimiter '|' \
+--output_path /home/ceu/research/repos/cmm_rt_shared/hmdb \
+--inchi_column_name inchi \
+--input_file_type THREE_D
+
+/bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
+--input_path /home/ceu/research/repos/cmm_rt_shared/hmdb \
+--input_file hmdb_2.csv \
+--delimiter '|' \
+--output_path /home/ceu/research/repos/cmm_rt_shared/hmdb \
+--inchi_column_name inchi \
+--input_file_type THREE_D
+
+/bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
+--input_path /home/ceu/research/repos/cmm_rt_shared/hmdb \
+--input_file hmdb.csv \
+--delimiter '|' \
+--output_path /home/ceu/research/repos/cmm_rt_shared/hmdb \
+--inchi_column_name inchi \
+--input_file_type TWO_D
