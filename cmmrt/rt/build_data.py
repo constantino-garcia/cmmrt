@@ -29,6 +29,7 @@ from alvadesccliwrapper.alvadesc import AlvaDesc
 from typing import Tuple
 from typing import Any
 
+
 NUMBER_FPVALUES = 2214
 NUMBER_DESCRIPTORS = 5666
 ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
@@ -62,6 +63,53 @@ class FingerprintType(Enum):
 def list_of_ints_from_str(big_int_str):
     ints_list = [int(d) for d in str(big_int_str)]
     return ints_list
+
+def get_ancestors_from_classyfire(inchi, inchi_key):
+    """
+    Get the ancestors from the classyfire classification. 
+    It uses the inchi key first, if not classified, inchi.
+    Syntax
+    -------
+            str = get_ancestors_from_classyfire(inchi, inchi_key)
+                
+    Parameters
+    ----------
+    [in] inchi: string with the InChI of a compound
+    [in] inchi_key: string with the InChIKey of a compound
+    
+    Returns
+    -------
+    List of strings representing the ancestors of the compound.
+    
+    Exceptions
+    ----------
+    Raises an exception if the request fails or data is unavailable.
+    """
+    url_classyfire = "http://classyfire.wishartlab.com/entities/" + inchi_key + ".json"
+    retries = 0
+    while True:
+        try:
+            with urllib.request.urlopen(url_classyfire) as jsonclassyfire:
+                response_code = jsonclassyfire.getcode()
+
+                if response_code == 200:
+                    response = requests.get(url_classyfire)
+                    response.raise_for_status()  # Raise an HTTPError for bad responses
+                    data = response.json()
+                    
+                    if "ancestors" in data:
+                        return data["ancestors"]
+
+        except urllib.error.HTTPError as exception:
+            if exception.code == 429:
+                if retries < 3:
+                    print("Too many requests. Try in 5 seconds")
+                    print(exception)
+                    time.sleep(5)
+            else:
+                raise exception("HTTP Error: " + str(exception))
+
+
 
 def is_a_lipid_from_classyfire(inchi, inchi_key):
     """ 
@@ -136,7 +184,6 @@ def is_a_lipid_from_classyfire(inchi, inchi_key):
             else:
                 raise exception
 
-
 def is_in_lipidMaps(inchi_key):
     """ 
         check if the inchi key is present in lipidmaps
@@ -196,6 +243,10 @@ def download_sdf_pubchem(pc_id, output_path, sdf_type:SDFType = SDFType.THREE_D)
         -------
           >>> inchi_key = get_inchi_key_from_pubchem(1,'.')
     """
+    file_path = f"{output_path}/{pc_id}.sdf"
+    if os.path.exists(file_path):
+        return # File already exists, no need to download again
+    
     url_pubchem="https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/" + str(pc_id) + "/SDF"
     if sdf_type == SDFType.TWO_D:
         pass
@@ -205,11 +256,68 @@ def download_sdf_pubchem(pc_id, output_path, sdf_type:SDFType = SDFType.THREE_D)
     with urllib.request.urlopen(url_pubchem) as response:
         content = response.read().decode("utf-8")
 
-        file_path = f"{output_path}/{pc_id}.sdf"
-
         with open(file_path, "w") as file:
             file.write(content)
             return
+
+def download_sdf_hmdb(hmdb_id, output_path, sdf_type: SDFType = SDFType.THREE_D, retries=3):
+    """ 
+        Get SDF file from the HMDB identifier. It retries the call 3 times if the request is not responded.
+
+        Syntax
+        ------
+          None = download_sdf_hmdb(hmdb_id, output_path, sdf_type)
+
+        Parameters
+        ----------
+            [in] hmdb_id: str
+                HMDB identifier (e.g., HMDB0000123).
+            [out] output_path: str
+                File path to save the corresponding {hmdb_id}.sdf file.
+            [in] sdf_type: SDFType (Enum)
+                Specifies the type of SDF file [TWO_D, THREE_D].
+            [in] retries: int
+                Number of retry attempts in case of request failure (default = 3).
+
+        Returns
+        -------
+            None
+
+        Exceptions
+        ----------
+          Exception:
+            If the HMDB ID is not found in the HMDB database, an exception is raised.
+
+        Example
+        -------
+          >>> download_sdf_hmdb("HMDB0000123", "./")
+    """  
+
+    file_path = f"{output_path}/{hmdb_id}.sdf"
+    if os.path.exists(file_path):
+        return  # File already exists, no need to download again
+    
+    # Construct the URL based on SDF type
+    url_hmdb = f"https://hmdb.ca/structures/metabolites/{hmdb_id}/download.sdf"
+    if sdf_type == SDFType.THREE_D:
+        url_hmdb += "?dim=3d"
+
+    # Retry mechanism for network errors
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(url_hmdb) as response:
+                content = response.read().decode("utf-8")
+
+                with open(file_path, "w") as file:
+                    file.write(content)
+                    return  # Successfully saved, exit function
+
+        except Exception as e:
+            if attempt < retries - 1:
+                time.sleep(2)  # Wait before retrying
+            else:
+                raise Exception(f"Failed to download SDF for HMDB ID {hmdb_id}: {e}")
+
 
 def get_inchi_from_smiles(smiles):
     """
@@ -241,30 +349,29 @@ def get_inchi_from_smiles(smiles):
 
 def get_pubchemid_from_inchi(inchi):
     """ 
-        Get SDF file from the inchi. It retries the call 3 times if the request is not responded.
+        Get the pubchem ID from the inchi. 
 
         Syntax
         ------
-          str = download_sdf_pubchem_from_inchi(inchi)
+          str = get_pubchemid_from_inchi(inchi)
 
         Parameters
         ----------
-            [in] pc_id: PC_ID integer corresponding to the pubchem identifier
-            [out] output_path: file path to save the corresponding {pc_id}.sdf file
-            [in] sdf_type: SDFType enum to specify the type of SDF file [TWO_D, THREE_D]
+            [in] inchi: inchi string of a compound
+            [out] pc_id: PC_ID integer corresponding to the pubchem identifier
 
         Returns
         -------
-            None
+            pubchem ID
 
         Exceptions
         ----------
           Exception:
-            If the inchi is not found in pubchem
+            If the pubchem ID is not found in pubchem
 
         Example
         -------
-          >>> inchi_key = get_inchi_key_from_pubchem("InChI=1S/C7H6O2/c8-7(9)6-4-2-1-3-5-6/h1-5H,(H,8,9)")
+          >>> inchi_key = get_pubchemid_from_inchi("InChI=1S/C7H6O2/c8-7(9)6-4-2-1-3-5-6/h1-5H,(H,8,9)")
     """
     # URL for the POST request
     url_pubchem = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/inchi/cids/TXT"
@@ -281,6 +388,115 @@ def get_pubchemid_from_inchi(inchi):
         return int(cid)
     else:
         raise Exception('INCHI NOT FOUND: ' + inchi + ' in the url ' + url_pubchem)
+
+
+def load_db_credentials(file_path="cmmrt/rt/db_credentials.txt"):
+    """ 
+        Load database credentials from a text file.
+
+        Syntax
+        ------
+          dict = load_db_credentials(file_path)
+
+        Parameters
+        ----------
+            [in] file_path: str
+                Path to the credentials file.
+
+        Returns
+        -------
+            credentials: dict
+                Dictionary containing database connection details.
+
+        Exceptions
+        ----------
+          Exception:
+            If the file is missing or improperly formatted.
+
+        Example
+        -------
+          >>> creds = load_db_credentials("db_credentials.txt")
+    """  
+    credentials = {}
+    with open(file_path, "r") as file:
+        for line in file:
+            key, value = line.strip().split("=")
+            credentials[key] = value
+    return credentials
+
+
+def get_hmdb_id(inchi):
+    """ 
+        Retrieve the HMDB ID from a MySQL database using an InChI string.
+
+        Syntax
+        ------
+          str = get_hmdb_id(inchi)
+
+        Parameters
+        ----------
+            [in] inchi: str
+                InChI string of a compound.
+
+        Returns
+        -------
+            hmdb_id: str
+                Corresponding HMDB ID.
+
+        Exceptions
+        ----------
+          Exception:
+            If the InChI is not found in the database.
+            If there is a MySQL connection error.
+
+        Example
+        -------
+          >>> inchi = "InChI=1S/C9H8O4/c10-6-3-1-2-5(4-6)9(13)12-8-7(11)9/h1-4,7-8,11H"
+          >>> hmdb_id = get_hmdb_id(inchi)
+          >>> print(hmdb_id)
+    """  
+
+    import mysql.connector
+    
+    try:
+        
+        # Load credentials
+        creds = load_db_credentials()
+
+        # Establish MySQL connection using loaded credentials
+        conn = mysql.connector.connect(
+            host=creds["host"],
+            user=creds["user"],
+            password=creds["password"],
+            database=creds["database"]
+        )
+        cursor = conn.cursor()
+        
+        # SQL Query
+        query = """
+        SELECT hmdb_id 
+        FROM compounds_hmdb ch 
+        INNER JOIN compound_identifiers ci 
+        ON ci.compound_id = ch.compound_id 
+        WHERE inchi LIKE %s;
+        """
+        cursor.execute(query, (inchi,))  # Execute query with parameter
+
+        # Fetch result
+        result = cursor.fetchone()
+
+        # Close connection
+        cursor.close()
+        conn.close()
+
+        # Check if result is found
+        if result:
+            return result[0]  # Return HMDB ID
+        else:
+            raise Exception("HMDB ID not found for the given InChI.")
+
+    except mysql.connector.Error as e:
+        raise Exception(f"MySQL Error: {str(e)}")
 
 def get_inchi_and_inchi_key_from_pubchem(pc_id):
     """ 
@@ -410,35 +626,6 @@ def get_file_type(mol_structure_path):
         return "HYPERCHEM"
     else:
         raise TypeError("File formats recognized are smiles, mol, sdf, mol2 or hin")
-
-def check_fingerprint_type(fingerprintType):
-    """ 
-        Check the type of fingerprints belongs to ECFP, MACCSFP or PFP
-
-        Syntax
-        ------
-          str = check_fingerprint_type(fingerprintType)
-
-        Parameters
-        ----------
-            [in] fingerprintType (str): type of finreprint
-
-        Returns
-        -------
-          None
-
-        Exceptions
-        ----------
-          ValueError:
-            If the fingerprint Type is not ECFP, MACCSFP or PFP
-
-        Example
-        -------
-          >>> check_fingerprint_type("PFP")
-    """
-    if not fingerprintType.lower() in ("ecfp", "maccsfp","pfp"):
-        raise ValueError("Fingerprint Type not recognized. Currently ECFP, MACCSFP and PFP are available.")
-
 
 def get_morgan_fingerprint_rdkit(smiles):
     """
@@ -810,9 +997,193 @@ def generate_vector_descriptors_CSV(aDesc, mol_structure_path, smiles = None, se
     return str_descriptors_csv
     
 
-def inchi_to_3d_structure_rdkit(inchi):
+def write_2D_file(output_path, inchi=None, inchi_key=None, smiles=None):
+    """
+    Converts an InChI or SMILES string to a 2D RDKit molecule and saves it as an SDF file 
+    with the inchiKey.sdf.
+
+    Parameters:
+    ----------
+    output_path : str
+        The directory where the file should be saved.
+    inchi : str, optional
+        The InChI (IUPAC International Chemical Identifier) string of the molecule.
+    smiles : str, optional
+        The SMILES (Simplified Molecular Input Line Entry System) representation 
+        of the molecule.
+
+    Returns:
+    -------
+    str
+        Full path of the saved SDF file.
+
+    Raises:
+    ------
+    ValueError:
+        - If neither InChI nor SMILES is provided.
+    FileNotFoundError:
+        - If the specified output directory does not exist.
+
+    Notes:
+    ------
+    - Calls `inchi_to_2d_structure_rdkit` to generate a 2D molecule.
+    - Extracts the InChI Key and uses it as the filename.
+    - If the directory does not exist, an error is raised.
+
+    Example:
+    --------
+    ```python
+    write_2D_file("output_folder", inchi="InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3")
+    ```
+    """
+    file_name = f"{inchi_key}.sdf"
+    full_path = os.path.join(output_path, file_name)
+    if os.path.exists(full_path):
+        return full_path  # Return the existing file path
+    
+    # Convert InChI or SMILES to a 2D molecule
+    mol = inchi_to_2d_structure_rdkit(inchi=inchi, smiles=smiles)
+
+    # Get the InChI Key
+    inchi_key = Chem.InchiToInchiKey(Chem.MolToInchi(mol))
+
+    # Construct the filename based on InChI Key
+    file_name = f"{inchi_key}.sdf"
+    full_path = os.path.join(output_path, file_name)
+    # Ensure the output directory exists
+    if not os.path.exists(output_path):
+        raise FileNotFoundError(f"Output directory '{output_path}' does not exist.")
+
+    # Write molecule to SDF file
+    Chem.MolToMolFile(mol, full_path)
+
+    return full_path
+
+def write_3D_file(output_path, inchi=None, inchi_key=None, smiles=None):
+    """
+    Converts an InChI or SMILES string to a 3D RDKit molecule and saves it as an SDF file with the inchiKey.sdf.
+
+    Parameters:
+    ----------
+    output_path : str
+        The directory where the file should be saved.
+    inchi : str, optional
+        The InChI (IUPAC International Chemical Identifier) string of the molecule.
+    smiles : str, optional
+        The SMILES (Simplified Molecular Input Line Entry System) representation 
+        of the molecule.
+
+    Returns:
+    -------
+    str
+        Full path of the saved SDF file.
+
+    Raises:
+    ------
+    ValueError:
+        - If neither InChI nor SMILES is provided.
+        - If the molecule does not contain 3D coordinates.
+        - If the file name does not end with `.sdf`.
+    FileNotFoundError:
+        - If the specified output directory does not exist.
+
+    Notes:
+    ------
+    - Calls `inchi_to_3d_structure_rdkit` to generate a 3D molecule.
+    - Ensures that the molecule has 3D coordinates before saving.
+    - If the directory does not exist, an error is raised.
+
+    Example:
+    --------
+    ```python
+    write_3D_file("output_folder", "ethanol.sdf", inchi="InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3")
+    ```
+    """
+
+    file_name = f"{inchi_key}.sdf"
+    full_path = os.path.join(output_path, file_name)
+    if os.path.exists(full_path):
+        return full_path  # Return the existing file path
+    
+    # Generate 3D molecule
+    mol = inchi_to_3d_structure_rdkit(inchi=inchi, smiles=smiles)
+
+    if not mol.GetConformer().Is3D():
+        raise ValueError("The generated molecule does not have 3D coordinates.")
+
+    # Get the InChI Key
+    inchi_key = Chem.InchiToInchiKey(Chem.MolToInchi(mol))
+
+    file_name = f"{inchi_key}.sdf"
+    full_path = os.path.join(output_path, file_name)
+
+    # Ensure the output directory exists
+    if not os.path.exists(output_path):
+        raise FileNotFoundError(f"Output directory '{output_path}' does not exist.")
+
+    # Write molecule to SDF file
+    Chem.MolToMolFile(mol, full_path)
+
+    return full_path
+
+
+def inchi_to_3d_structure_rdkit(inchi=None, smiles=None):
+    """
+    Converts an InChI or SMILES string into a 3D molecular structure using RDKit.
+
+    This function takes either an InChI or SMILES string, converts it into an RDKit 
+    molecule object, generates 3D coordinates, and optimizes the structure.
+
+    Parameters:
+    ----------
+    inchi : str, optional
+        The InChI (IUPAC International Chemical Identifier) string of the molecule.
+    smiles : str, optional
+        The SMILES (Simplified Molecular Input Line Entry System) representation 
+        of the molecule.
+
+    Returns:
+    -------
+    mol : rdkit.Chem.Mol
+        An RDKit molecule object with 3D coordinates.
+
+    Raises:
+    ------
+    ValueError:
+        - If neither InChI nor SMILES is provided.
+        - If the given InChI or SMILES cannot be converted into an RDKit molecule.
+
+    Notes:
+    ------
+    - If an InChI is provided, it is converted into an RDKit molecule, and the 
+      corresponding SMILES string is generated.
+    - If a SMILES string is provided, it is converted into an RDKit molecule, and 
+      the corresponding InChI string is generated.
+    - Hydrogen atoms are explicitly added before 3D generation.
+    - The function first attempts to generate 3D coordinates using `AllChem.ETKDG()`.
+      If this fails, it retries using random coordinates.
+    - The 3D structure is optimized using the UFF (Universal Force Field) method.
+
+    Example:
+    --------
+    ```python
+    from rdkit import Chem
+
+    inchi_str = "InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3"
+    mol = inchi_to_3d_structure_rdkit(inchi=inchi_str)
+    Chem.MolToMolFile(mol, "output.sdf")
+    ```
+    """
     # Convert InChI to RDKit molecule object
-    mol = Chem.MolFromInchi(inchi)
+    if inchi is None and smiles is None:
+        raise ValueError("Either InChI or SMILES must be provided")
+    elif inchi is not None:
+        mol = Chem.MolFromInchi(inchi)
+        smiles = Chem.MolToSmiles(mol)
+    elif smiles is not None:
+        mol = Chem.MolFromSmiles(smiles)
+        inchi = get_inchi_from_smiles(smiles)
+    
     if mol is None:
         raise ValueError("Invalid InChI string")
     
@@ -829,9 +1200,56 @@ def inchi_to_3d_structure_rdkit(inchi):
     
     return mol
 
+def inchi_to_2d_structure_rdkit(inchi=None, smiles=None):
+    """
+    Converts an InChI or SMILES string into a 2D molecular structure using RDKit.
+
+    Parameters:
+    ----------
+    inchi : str, optional
+        The InChI (IUPAC International Chemical Identifier) string of the molecule.
+    smiles : str, optional
+        The SMILES (Simplified Molecular Input Line Entry System) representation 
+        of the molecule.
+
+    Returns:
+    -------
+    mol : rdkit.Chem.Mol
+        An RDKit molecule object with 2D coordinates.
+
+    Raises:
+    ------
+    ValueError:
+        - If neither InChI nor SMILES is provided.
+        - If the given InChI or SMILES cannot be converted into an RDKit molecule.
+
+    Notes:
+    ------
+    - Uses RDKit’s `Compute2DCoords()` to ensure the molecule is represented in 2D.
+    - Hydrogen atoms are explicitly added before coordinate generation.
+    """
+    if inchi is None and smiles is None:
+        raise ValueError("Either InChI or SMILES must be provided")
+
+    if inchi is not None:
+        mol = Chem.MolFromInchi(inchi)
+    else:
+        mol = Chem.MolFromSmiles(smiles)
+
+    if mol is None:
+        raise ValueError("Invalid InChI or SMILES string")
+
+    # Add hydrogen atoms
+    mol = Chem.AddHs(mol)
+
+    # Generate 2D coordinates
+    Chem.rdDepictor.Compute2DCoords(mol)
+
+    return mol
+
 
 def main():
-    # VARIABLES FOR TESTINS. CHANGE THE PROGRAM AND FILE PATHS IF YOU RUN IT LOCALLY
+    # VARIABLES FOR TESTING. CHANGE THE PROGRAM AND FILE PATHS IF YOU RUN IT LOCALLY
     aDescPath = ALVADESC_LOCATION
     aDesc = AlvaDesc(aDescPath)
     sdfPath = '/home/ceu/research/repos/cmm_rt_shared/SDF/'
@@ -892,8 +1310,6 @@ def main():
         print("Test PASS. number of descriptors of pubchem id1 correctly calculated")
     else:
         print("Test FAIL. Check the method get_descriptors(aDesc, structureFileName)." + " RESULT: " + str(actualResult))
-
-    
 
     print("=================================================================.")
     print("Test Case 6: Fingerprints of pubchem id1")

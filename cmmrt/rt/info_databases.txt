@@ -23,7 +23,7 @@ INPUT: /home/ceu/research/repos/cmm_rt_shared/report_20240417
 
 OUTPUT: /home/ceu/research/repos/cmm_rt_shared/report_20240417
 
-FileName: AllCCS2_experimental_with_inchis.csv
+FileName: unique_inchi_repoRT.tsv
 
 Smiles_column: smiles.std
 Inchi column: inchi.std
@@ -54,13 +54,14 @@ pubchem_id_column_name: pubChem
 
 Llamada:
 /bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
---input_path /home/ceu/research/repos/cmm_rt_shared/report_20240417/ \
---input_file unique_inchi_repoRT.tsv \
---output_path /home/ceu/research/repos/cmm_rt_shared/report_20240417/ \
---smiles_column_name smiles.std \
+--input_path /home/ceu/research/repos/cmm_rt_shared/metlin_ims \
+--input_file METLIN_IMS.tsv \
+--delimiter 'tab' \
+--output_path /home/ceu/research/repos/cmm_rt_shared/metlin_ims \
+--smiles_column_name smiles \
 --inchi_column_name inchi \
 --pubchem_id_column_name pubChem \
---input_file_type TWO_D
+--input_file_type THREE_D
 
 
 
@@ -71,15 +72,15 @@ OUTPUT: /home/ceu/research/repos/cmm_rt_shared/ccsbase/
 
 FileName: METLIN_IMS.tsv
 
-Smiles_column: SMI
+Smiles_column: smi
 
 Llamada:
 /bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
 --input_path /home/ceu/research/repos/cmm_rt_shared/ccsbase/ \
 --input_file ccsbase.csv \
 --output_path /home/ceu/research/repos/cmm_rt_shared/ccsbase/ \
---smiles_column_name SMI \
---input_file_type THREE_D
+--smiles_column_name smi \
+--input_file_type TWO_D
 
 
 
@@ -147,14 +148,7 @@ FileName: hmdb.csv
 --input_file hmdb.csv \
 --delimiter '|' \
 --output_path /home/ceu/research/repos/cmm_rt_shared/hmdb \
---inchi_column_name inchi \
---input_file_type THREE_D
-
-/bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
---input_path /home/ceu/research/repos/cmm_rt_shared/hmdb \
---input_file hmdb_2.csv \
---delimiter '|' \
---output_path /home/ceu/research/repos/cmm_rt_shared/hmdb \
+--hmdb_id_column_name hmdb_id \
 --inchi_column_name inchi \
 --input_file_type THREE_D
 
@@ -163,5 +157,6 @@ FileName: hmdb.csv
 --input_file hmdb.csv \
 --delimiter '|' \
 --output_path /home/ceu/research/repos/cmm_rt_shared/hmdb \
+--hmdb_id_column_name hmdb_id \
 --inchi_column_name inchi \
 --input_file_type TWO_D
