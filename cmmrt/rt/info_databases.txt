@@ -61,7 +61,7 @@ Llamada:
 --smiles_column_name smiles \
 --inchi_column_name inchi \
 --pubchem_id_column_name pubChem \
---input_file_type THREE_D
+--input_file_type TWO_D
 
 
 
@@ -145,7 +145,7 @@ FileName: hmdb.csv
 
 /bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
 --input_path /home/ceu/research/repos/cmm_rt_shared/hmdb \
---input_file hmdb.csv \
+--input_file hmdb_2.csv \
 --delimiter '|' \
 --output_path /home/ceu/research/repos/cmm_rt_shared/hmdb \
 --hmdb_id_column_name hmdb_id \
