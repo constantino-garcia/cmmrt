@@ -83,14 +83,14 @@ def main():
     
     # IT WILL TAKE SMILES to create a CSV file containing the vector with fingerprints (ECFP, MACCSFP and PFP) of each compound
     base_fileName, fileExtension = os.path.splitext(args.input_file)
-    '''
+    
     outputFileDescriptorsName = os.path.join(os.path.join(vector_fingerprints_path, base_fileName + "_descriptors" + fileExtension))
     if os.path.isfile(outputFileDescriptorsName):
         os.remove(outputFileDescriptorsName)
     outputFileDescriptorsAndFingerprintsName = os.path.join(os.path.join(vector_fingerprints_path, base_fileName + "_descriptorsAndFingerprints" + fileExtension))
     if os.path.isfile(outputFileDescriptorsAndFingerprintsName):
         os.remove(outputFileDescriptorsAndFingerprintsName)
-    '''
+    
     outputFileFingerprintsVectorizedName = os.path.join(os.path.join(vector_fingerprints_path, base_fileName + "_vectorfingerprintsVectorized" + fileExtension))
     if os.path.isfile(outputFileFingerprintsVectorizedName):
         os.remove(outputFileFingerprintsVectorizedName)
@@ -101,7 +101,7 @@ def main():
         # RUN A MOCK SDF TO OBTAIN DESCRIPTORS HEADERS
         inchi="O=C(NCc1ccc(cc1)F)NCCCN1CCc2c1cccc2"
         aDesc.set_input_SMILES(inchi)
-        '''
+        
         aDesc.calculate_descriptors('ALL')
         listDescriptors = aDesc.get_output_descriptors()
         
@@ -126,7 +126,7 @@ def main():
         outputFileDescriptorsAndFingerprints = open(outputFileDescriptorsAndFingerprintsName, 'w', newline='')
         writerDescriptorsAndFingerprints = csv.DictWriter(outputFileDescriptorsAndFingerprints, fieldnames = descriptorsAndFingerPrintsFieldNames)
         writerDescriptorsAndFingerprints.writeheader()
-        '''
+        
         # Create here the headers from the input file and then add the Fingerprints
         FPVectorizedFieldNames = reader.fieldnames.copy()
         FPVectorizedFieldNames.append(column_name_is_3D)
@@ -151,7 +151,7 @@ def main():
         for row in reader:
             pc_id = None
             if pubchem_id_column_name:
-                pc_id = row[pubchem_id_column_name]
+                pc_id = row[pubchem_id_column_name].strip()
             
             if pc_id:
                 try:
@@ -166,7 +166,7 @@ def main():
             
             hmdb_id = None
             if hmdb_id_column_name:
-                hmdb_id = row[hmdb_id_column_name]
+                hmdb_id = row[hmdb_id_column_name].strip()
                 if not hmdb_id:
                     try:
                         hmdb_id = build_data.get_hmdb_id(inchi)
@@ -183,7 +183,7 @@ def main():
                 hmdb_id_sdf_path = None
 
             if inchi_column_name:
-                inchi = row[inchi_column_name]
+                inchi = row[inchi_column_name].strip()
                 if inchi != None:
                     mol = Chem.MolFromInchi(inchi)
                     if not mol:
@@ -191,7 +191,7 @@ def main():
                     smiles = Chem.MolToSmiles(mol)
                     
             elif smiles_column_name:
-                smiles = row[smiles_column_name]
+                smiles = row[smiles_column_name].strip()
                 if not smiles:
                     continue
                 mol = Chem.MolFromSmiles(smiles)
@@ -216,7 +216,7 @@ def main():
                 row[column_name_is_3D] = False
             
             # Do directly the copy of all elements of the row
-            '''
+            
             if inchi_key in descriptors_dict:
                 descriptors = descriptors_dict[inchi_key]
             else:
@@ -229,7 +229,7 @@ def main():
                 partialDictDescriptorsRow[descriptor_header] = descriptors[i]
             writerDescriptors.writerow(partialDictDescriptorsRow)
             partialDictDescriptorsAndFingerprintsRow = partialDictDescriptorsRow.copy()
-            '''
+            
             # Add fingerprints
             if inchi_key in ecfp_dict:
                 fingerprint_ecfp = ecfp_dict[inchi_key]
@@ -254,14 +254,14 @@ def main():
                 vector_fingerprints = build_data.generate_vector_fingerprints(aDesc,mol_structure_path=sdf_full_path,smiles=smiles)
                 vector_fingerprints_dict[inchi_key] = vector_fingerprints
             
-            '''
+            
             partialDictDescriptorsAndFingerprintsRow['ECFP'] = fingerprint_ecfp
             partialDictDescriptorsAndFingerprintsRow['MACCSFP'] = fingerprint_maccs
             partialDictDescriptorsAndFingerprintsRow['PFP'] = fingerprint_pfp
             
             partialDictDescriptorsAndFingerprintsRow['MorganFP'] = fingerprint_morgan
             writerDescriptorsAndFingerprints.writerow(partialDictDescriptorsAndFingerprintsRow)
-            '''
+            
             partialDictFP = row.copy()
             for i in range(0,NUMBER_FPVALUES):
                 header_name = "V" + str(i+1)
