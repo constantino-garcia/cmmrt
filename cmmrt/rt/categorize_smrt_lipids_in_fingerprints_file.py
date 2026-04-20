@@ -3,15 +3,15 @@
 
  
 """
-@contents :  This module contains functions to generate fingerprints and descriptors using alvaDesc program from the SMRT database
+@contents :  This module contains functions to categorize the compounds in the fingerprints file to see which ones are lipids
 @project :  cmmrt (CEU Mass Mediator Retention Time)
 @program :  CEU Mass Mediator
-@file :  build_data_smrt.py
+@file :  categorize_smrt_lipids_in_fingerprints_file.py
 @author :  Alberto Gil De la Fuente (alberto.gilf@gmail.com)
            Constantino García Martínez(constantino.garciama@ceu.es)
            
 
-@version :  0.0.2, 29 September 2021
+@version :  0.0.2, 24 June 2023
 @information : A valid license of AlvaDesc is necessary to generate the descriptors and fingerprints of chemical structures. 
 
 @copyright :  GNU General Public License v3.0
@@ -27,8 +27,8 @@ import pandas as pd
 import time
 
 def main():
-    inputPath = '/home/alberto/data/'
-    outputPath = '/home/alberto/data/'
+    inputPath = '/home/ceu/research/repos/cmm_rt_shared/'
+    outputPath = '/home/ceu/research/repos/cmm_rt_shared/'
     #Constants
     NUMBER_FPVALUES=2214
 

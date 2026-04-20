@@ -24,23 +24,92 @@
 import urllib.request,urllib.error, json 
 import time
 import os
-#from alvadesccliwrapper.alvadesc import AlvaDesc
+import requests
+from alvadesccliwrapper.alvadesc import AlvaDesc
+from typing import Tuple
+from typing import Any
+
 
 NUMBER_FPVALUES = 2214
-NUMBER_DESCRIPTORS = 6524
-#ALVADESC_LOCATION = 'C:/"Program Files"/Alvascience/alvaDesc/alvaDescCLI.exe'
+NUMBER_DESCRIPTORS = 5666
 ALVADESC_LOCATION = '/usr/bin/alvaDescCLI'
-outputPath = '/home/alberto/repos/cmmrt/cmmrt/rt/resources/'
+outputPath = '/home/ceu/research/repos/cmm_rt_shared/metlin_ims/'
 
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem.rdmolops import FastFindRings
+from enum import Enum
 
 
+class SDFType(Enum):
+    TWO_D = 2
+    THREE_D = 3
+
+class FingerprintType(Enum):
+    '''
+    Enum class to specify the type of fingerprint. ECFP, MACCSFP or PFP are from AlvaDesc
+    MORGAN are RDKIT fingerprints
+    MAP4 are from Reymond group (https://github.com/reymond-group/map4)
+    MHFP6 are from Reymond group (https://github.com/reymond-group/mhfp)
+    '''
+    ECFP = "ECFP"
+    MACCSFP = "MACCSFP"
+    PFP = "PFP"
+    MORGAN = "MORGAN"
+    MAP4 = "MAP4"
+    MHFP6 = "MHFP6"
+    
 
 def list_of_ints_from_str(big_int_str):
     ints_list = [int(d) for d in str(big_int_str)]
     return ints_list
+
+def get_ancestors_from_classyfire(inchi, inchi_key):
+    """
+    Get the ancestors from the classyfire classification. 
+    It uses the inchi key first, if not classified, inchi.
+    Syntax
+    -------
+            str = get_ancestors_from_classyfire(inchi, inchi_key)
+                
+    Parameters
+    ----------
+    [in] inchi: string with the InChI of a compound
+    [in] inchi_key: string with the InChIKey of a compound
+    
+    Returns
+    -------
+    List of strings representing the ancestors of the compound.
+    
+    Exceptions
+    ----------
+    Raises an exception if the request fails or data is unavailable.
+    """
+    url_classyfire = "http://classyfire.wishartlab.com/entities/" + inchi_key + ".json"
+    retries = 0
+    while True:
+        try:
+            with urllib.request.urlopen(url_classyfire) as jsonclassyfire:
+                response_code = jsonclassyfire.getcode()
+
+                if response_code == 200:
+                    response = requests.get(url_classyfire)
+                    response.raise_for_status()  # Raise an HTTPError for bad responses
+                    data = response.json()
+                    
+                    if "ancestors" in data:
+                        return data["ancestors"]
+
+        except urllib.error.HTTPError as exception:
+            if exception.code == 429:
+                if retries < 3:
+                    print("Too many requests. Try in 5 seconds")
+                    print(exception)
+                    time.sleep(5)
+            else:
+                raise exception("HTTP Error: " + str(exception))
+
+
 
 def is_a_lipid_from_classyfire(inchi, inchi_key):
     """ 
@@ -115,7 +184,6 @@ def is_a_lipid_from_classyfire(inchi, inchi_key):
             else:
                 raise exception
 
-
 def is_in_lipidMaps(inchi_key):
     """ 
         check if the inchi key is present in lipidmaps
@@ -147,6 +215,288 @@ def is_in_lipidMaps(inchi_key):
         return False
     except Exception as e:
         raise e
+
+def download_sdf_pubchem(pc_id, output_path, sdf_type:SDFType = SDFType.THREE_D):
+    """ 
+        Get SDF file from the pubchem identifier. It retries the call 3 times if the request is not responded.
+
+        Syntax
+        ------
+          str = download_sdf_pubchem(pc_id, output_path)
+
+        Parameters
+        ----------
+            [in] pc_id: PC_ID integer corresponding to the pubchem identifier
+            [out] output_path: file path to save the corresponding {pc_id}.sdf file
+            [in] sdf_type: SDFType enum to specify the type of SDF file [TWO_D, THREE_D]
+
+        Returns
+        -------
+            None
+
+        Exceptions
+        ----------
+          Exception:
+            If the pubchem identifier is not present in pubchem database it will reraise the exception
+
+        Example
+        -------
+          >>> inchi_key = get_inchi_key_from_pubchem(1,'.')
+    """
+    file_path = f"{output_path}/{pc_id}.sdf"
+    if os.path.exists(file_path):
+        return # File already exists, no need to download again
+    
+    url_pubchem="https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/" + str(pc_id) + "/SDF"
+    if sdf_type == SDFType.TWO_D:
+        pass
+    else:
+        url_pubchem = url_pubchem + "?record_type=3d"
+
+    with urllib.request.urlopen(url_pubchem) as response:
+        content = response.read().decode("utf-8")
+
+        with open(file_path, "w") as file:
+            file.write(content)
+            return
+
+def download_sdf_hmdb(hmdb_id, output_path, sdf_type: SDFType = SDFType.THREE_D, retries=3):
+    """ 
+        Get SDF file from the HMDB identifier. It retries the call 3 times if the request is not responded.
+
+        Syntax
+        ------
+          None = download_sdf_hmdb(hmdb_id, output_path, sdf_type)
+
+        Parameters
+        ----------
+            [in] hmdb_id: str
+                HMDB identifier (e.g., HMDB0000123).
+            [out] output_path: str
+                File path to save the corresponding {hmdb_id}.sdf file.
+            [in] sdf_type: SDFType (Enum)
+                Specifies the type of SDF file [TWO_D, THREE_D].
+            [in] retries: int
+                Number of retry attempts in case of request failure (default = 3).
+
+        Returns
+        -------
+            None
+
+        Exceptions
+        ----------
+          Exception:
+            If the HMDB ID is not found in the HMDB database, an exception is raised.
+
+        Example
+        -------
+          >>> download_sdf_hmdb("HMDB0000123", "./")
+    """  
+
+    file_path = f"{output_path}/{hmdb_id}.sdf"
+    if os.path.exists(file_path):
+        return  # File already exists, no need to download again
+    
+    # Construct the URL based on SDF type
+    url_hmdb = f"https://hmdb.ca/structures/metabolites/{hmdb_id}/download.sdf"
+    if sdf_type == SDFType.THREE_D:
+        url_hmdb += "?dim=3d"
+
+    # Retry mechanism for network errors
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(url_hmdb) as response:
+                content = response.read().decode("utf-8")
+
+                with open(file_path, "w") as file:
+                    file.write(content)
+                    return  # Successfully saved, exit function
+
+        except Exception as e:
+            if attempt < retries - 1:
+                time.sleep(2)  # Wait before retrying
+            else:
+                raise Exception(f"Failed to download SDF for HMDB ID {hmdb_id}: {e}")
+
+
+def get_inchi_from_smiles(smiles):
+    """
+    Generates the InChI (International Chemical Identifier) from a given SMILES string.
+
+    Syntax:
+        inchi = get_inchi_from_smiles(smiles)
+
+    Parameters:
+        smiles (str): A SMILES (Simplified Molecular Input Line Entry System) string representing the chemical structure.
+
+    Returns:
+        str: The corresponding InChI representation of the chemical structure.
+
+    Exceptions:
+        None
+
+    Example:
+        >>> get_inchi_from_smiles("CCO")
+        'InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3'
+
+    Note:
+        This function relies on the RDKit library for chemical structure manipulation.
+    """
+    mol = Chem.MolFromSmiles(smiles)
+
+    inchi = Chem.MolToInchi(mol, options='-SNon')
+    return inchi
+
+def get_pubchemid_from_inchi(inchi):
+    """ 
+        Get the pubchem ID from the inchi. 
+
+        Syntax
+        ------
+          str = get_pubchemid_from_inchi(inchi)
+
+        Parameters
+        ----------
+            [in] inchi: inchi string of a compound
+            [out] pc_id: PC_ID integer corresponding to the pubchem identifier
+
+        Returns
+        -------
+            pubchem ID
+
+        Exceptions
+        ----------
+          Exception:
+            If the pubchem ID is not found in pubchem
+
+        Example
+        -------
+          >>> inchi_key = get_pubchemid_from_inchi("InChI=1S/C7H6O2/c8-7(9)6-4-2-1-3-5-6/h1-5H,(H,8,9)")
+    """
+    # URL for the POST request
+    url_pubchem = "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/inchi/cids/TXT"
+
+    # Body of the POST request
+    post_body_data = {'inchi': inchi}
+
+    # Making the POST request
+    response = requests.post(url_pubchem, data=post_body_data)
+
+    # Extracting CID from the response
+    cid = response.text.strip()  # Removing leading/trailing whitespace
+    if cid:
+        return int(cid)
+    else:
+        raise Exception('INCHI NOT FOUND: ' + inchi + ' in the url ' + url_pubchem)
+
+
+def load_db_credentials(file_path="cmmrt/rt/db_credentials.txt"):
+    """ 
+        Load database credentials from a text file.
+
+        Syntax
+        ------
+          dict = load_db_credentials(file_path)
+
+        Parameters
+        ----------
+            [in] file_path: str
+                Path to the credentials file.
+
+        Returns
+        -------
+            credentials: dict
+                Dictionary containing database connection details.
+
+        Exceptions
+        ----------
+          Exception:
+            If the file is missing or improperly formatted.
+
+        Example
+        -------
+          >>> creds = load_db_credentials("db_credentials.txt")
+    """  
+    credentials = {}
+    with open(file_path, "r") as file:
+        for line in file:
+            key, value = line.strip().split("=")
+            credentials[key] = value
+    return credentials
+
+
+def get_hmdb_id(inchi):
+    """ 
+        Retrieve the HMDB ID from a MySQL database using an InChI string.
+
+        Syntax
+        ------
+          str = get_hmdb_id(inchi)
+
+        Parameters
+        ----------
+            [in] inchi: str
+                InChI string of a compound.
+
+        Returns
+        -------
+            hmdb_id: str
+                Corresponding HMDB ID.
+
+        Exceptions
+        ----------
+          Exception:
+            If the InChI is not found in the database.
+            If there is a MySQL connection error.
+
+        Example
+        -------
+          >>> inchi = "InChI=1S/C9H8O4/c10-6-3-1-2-5(4-6)9(13)12-8-7(11)9/h1-4,7-8,11H"
+          >>> hmdb_id = get_hmdb_id(inchi)
+          >>> print(hmdb_id)
+    """  
+
+    import mysql.connector
+    
+    try:
+        
+        # Load credentials
+        creds = load_db_credentials()
+
+        # Establish MySQL connection using loaded credentials
+        conn = mysql.connector.connect(
+            host=creds["host"],
+            user=creds["user"],
+            password=creds["password"],
+            database=creds["database"]
+        )
+        cursor = conn.cursor()
+        
+        # SQL Query
+        query = """
+        SELECT hmdb_id 
+        FROM compounds_hmdb ch 
+        INNER JOIN compound_identifiers ci 
+        ON ci.compound_id = ch.compound_id 
+        WHERE inchi LIKE %s;
+        """
+        cursor.execute(query, (inchi,))  # Execute query with parameter
+
+        # Fetch result
+        result = cursor.fetchone()
+
+        # Close connection
+        cursor.close()
+        conn.close()
+
+        # Check if result is found
+        if result:
+            return result[0]  # Return HMDB ID
+        else:
+            raise Exception("HMDB ID not found for the given InChI.")
+
+    except mysql.connector.Error as e:
+        raise Exception(f"MySQL Error: {str(e)}")
 
 def get_inchi_and_inchi_key_from_pubchem(pc_id):
     """ 
@@ -241,17 +591,17 @@ def get_lm_id_from_inchi_key(inchi_key):
 
 
 
-def get_file_type(chemicalStructureFile):
+def get_file_type(mol_structure_path):
     """ 
         Get the file type from a chemical structure file extension
 
         Syntax
         ------
-          str = get_file_type(chemicalStructureFile)
+          str = get_file_type(mol_structure_path)
 
         Parameters
         ----------
-            [in] chemicalStructureFile: Chemical structure file with extension smiles, mol, sdf, mol2 or hin
+            [in] mol_structure_path: Chemical structure file with extension smiles, mol, sdf, mol2 or hin
 
         Returns
         -------
@@ -266,72 +616,116 @@ def get_file_type(chemicalStructureFile):
         -------
           >>> get_file_type = get_file_type(outputPath + "1.sdf")
     """
-    if(chemicalStructureFile.lower().endswith(".smiles")):
+    if(mol_structure_path.lower().endswith(".smiles")):
         return "SMILES"
-    elif(chemicalStructureFile.lower().endswith(".mol") or chemicalStructureFile.lower().endswith(".sdf")):
+    elif(mol_structure_path.lower().endswith(".mol") or mol_structure_path.lower().endswith(".sdf")):
         return "MDL"
-    elif(chemicalStructureFile.lower().endswith(".mol2")):
+    elif(mol_structure_path.lower().endswith(".mol2")):
         return "SYBYL"
-    elif(chemicalStructureFile.lower().endswith(".hin")):
+    elif(mol_structure_path.lower().endswith(".hin")):
         return "HYPERCHEM"
     else:
         raise TypeError("File formats recognized are smiles, mol, sdf, mol2 or hin")
 
-def check_fingerprint_type(fingerprintType):
-    """ 
-        Check the type of fingerprints belongs to ECFP, MACCSFP or PFP
-
-        Syntax
-        ------
-          str = check_fingerprint_type(chemicalStructureFile)
-
-        Parameters
-        ----------
-            [in] fingerprintType (str): type of finreprint
-
-        Returns
-        -------
-          None
-
-        Exceptions
-        ----------
-          ValueError:
-            If the fingerprint Type is not ECFP, MACCSFP or PFP
-
-        Example
-        -------
-          >>> check_fingerprint_type("PFP")
-    """
-    if not fingerprintType.lower() in ("ecfp", "maccsfp","pfp"):
-        raise ValueError("Fingerprint Type not recognized. Currently ECFP, MACCSFP and PFP are available.")
-
-
 def get_morgan_fingerprint_rdkit(smiles):
+    """
+    Generates the Morgan fingerprint from a given SMILES string.
+    
+    Syntax:
+        fingerprint = get_morgan_fingerprint_rdkit(smiles)
+    Parameters:
+        smiles (str): A SMILES (Simplified Molecular Input Line Entry System) string representing the chemical structure.
+    Returns:
+        str: The corresponding Morgan fingerprint of the chemical structure.
+    Exceptions:
+        ValueError if smiles does not correspond to a molecule.
 
-    # Convert SMILES to RDKit Mol object
-    mol = Chem.MolFromSmiles(smiles)
+    """
+
     mol = Chem.MolFromSmiles(smiles, sanitize=False)
     mol.UpdatePropertyCache()
     FastFindRings(mol)
-    # Generate Morgan fingerprint with a radius of 2
-    fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius=2, nBits=1024)
+
+    generator = AllChem.GetMorganGenerator(radius=2, fpSize=1024) 
+    fp = generator.GetFingerprint(mol)
 
     return fp.ToBitString()
 
+def get_map4_fingerprint(smiles):
+    """
+    NOT WORKING BECAUSE OF THE IMPORT OF TMAP (https://github.com/reymond-group/tmap)
+    Generates the MAP4 fingerprint from a given SMILES string.
+
+    Syntax:
+        fingerprint = get_map4_fingerprint(smiles)
+
+    Parameters:
+        smiles (str): A SMILES (Simplified Molecular Input Line Entry System) string representing the chemical structure.
+
+    Returns:
+        str: The corresponding MAP4 fingerprint of the chemical structure.
+
+    Exceptions:
+        ValueError if smiles does not correspond to a molecule.
+
+    Example:
+        >>> get_map4_fingerprint("CCO")
+        
+    """
+
+    from map4 import MAP4Calculator
+    dim = 1024
+
+    MAP4 = MAP4Calculator(dimensions=dim)
+    mol = Chem.MolFromSmiles(smiles, sanitize=False)
+    mol.UpdatePropertyCache()
+    FastFindRings(mol)
+
+    map4 = MAP4.calculate(mol)
+    fp = MAP4.calculate(mol)
+    return fp
+
+def get_mhfp6_fingerprint(smiles):
+    """
+    Generates the MHFP6 fingerprint from a given SMILES string.
+
+    Syntax:
+        fingerprint = get_mhfp6_fingerprint(smiles)
+
+    Parameters:
+        smiles (str): A SMILES (Simplified Molecular Input Line Entry System) string representing the chemical structure.
+
+    Returns:
+        str: The corresponding MHFP6 fingerprint of the chemical structure.
+
+    Exceptions:
+        ValueError if smiles does not correspond to a molecule.
+
+    Example:
+        >>> get_mhfp6_fingerprint("CCO")
+        
+    """
+
+    from mhfp.encoder import MHFPEncoder
+    mhfp_encoder = MHFPEncoder()
+    
+    fp = mhfp_encoder.encode(smiles)
+    return fp
 
 
-def get_fingerprint(aDesc, chemicalStructureFile=None, smiles =None, fingerprint_type='ECFP', fingerprint_size = 1024):
+def get_fingerprint(aDesc, mol_structure_path=None, smiles=None, fingerprint_type: FingerprintType = FingerprintType.ECFP, fingerprint_size = 1024):
     """ 
         Generate the the specified type Fingerprint from a molecule structure file
 
         Syntax
         ------
-          str = get_fingerprint(aDesc, chemicalStructureFile, fingerprint_type, fingerprint_size)
+          str = get_fingerprint(aDesc, mol_structure_path, smiles, fingerprint_type, fingerprint_size)
 
         Parameters
         ----------
             [in] aDesc (AlvaDesc instance: instance of the aDesc client
-            [in] chemicalStructureFile (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] mol_structure_path (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] smiles (str): SMILES representing the molecule
             [in] fingerprint_type (str): 'ECFP' or 'PFP' or 'MACCSFP'
             [in] fingerprint_size (int): it's not used for MACCS and by default is 1024
         Returns
@@ -341,7 +735,7 @@ def get_fingerprint(aDesc, chemicalStructureFile=None, smiles =None, fingerprint
         Exceptions
         ----------
           TypeError:
-            If the chemicalStructureFile is not smiles, mol, sdf, mol2 or hin
+            If the mol_structure_path is not smiles, mol, sdf, mol2 or hin
             If the fingerprint_type is not ECFP, PFP or MACCSFP
 
           RuntimeError:
@@ -349,35 +743,34 @@ def get_fingerprint(aDesc, chemicalStructureFile=None, smiles =None, fingerprint
 
         Example
         -------
-          >>> pfp_fingerprint = get_fingerprint((ALVADESC_LOCATION),outputPath + "1.sdf", 'PFP')
+          >>> pfp_fingerprint = get_fingerprint((ALVADESC_LOCATION),outputPath + "1.sdf", None, 'PFP')
     """
-    if not fingerprint_type in ('ECFP','PFP','MACCSFP'):
-        raise TypeError("Fingerprint format not valid. It should be ECFP or PFP or MACCSFP")
-    if chemicalStructureFile==None:
+    if mol_structure_path==None and smiles != None:
         aDesc.set_input_SMILES(smiles)
+    elif mol_structure_path != None:
+        file_type = get_file_type(mol_structure_path)
+        aDesc.set_input_file(mol_structure_path, file_type)
     else:
-        file_type = get_file_type(chemicalStructureFile)
-        aDesc.set_input_file(chemicalStructureFile, file_type)
-    # TESTING A REGULAR SMILES HARDCODED
-    #aDesc.set_input_SMILES(['CC(=O)OC1=CC=CC=C1C(=O)O'])
-    if not aDesc.calculate_fingerprint(fingerprint_type, fingerprint_size):
+        raise ValueError("SDF or SMILES should be specified")
+    if not aDesc.calculate_fingerprint(fingerprint_type.value, fingerprint_size):
         raise RuntimeError('AlvaDesc Error ' + aDesc.get_error())
     else:
         fingerprint = aDesc.get_output()[0]
         return fingerprint
 
-def get_descriptors(aDesc, chemicalStructureFile=None, smiles=None):
+def get_descriptors(aDesc, mol_structure_path=None, smiles=None):
     """ 
         Generate all the descriptors from a molecule structure file
 
         Syntax
         ------
-          [obj] = get_descriptors(aDesc, chemicalStructureFile)
+          [obj] = get_descriptors(aDesc, mol_structure_path)
 
         Parameters
         ----------
             [in] aDesc (AlvaDesc instance): instance of the aDesc client
-            [in] chemicalStructureFile (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] mol_structure_path (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] smiles (str): SMILES representing the molecule
         Returns
         -------
           [obj] descriptors
@@ -385,7 +778,7 @@ def get_descriptors(aDesc, chemicalStructureFile=None, smiles=None):
         Exceptions
         ----------
           TypeError:
-            If the chemicalStructureFile is not smiles, mol, sdf, mol2 or hin
+            If the mol_structure_path is not smiles, mol, sdf, mol2 or hin
 
           RuntimeError:
             If aDesc gets an error calculating the descriptors
@@ -394,30 +787,32 @@ def get_descriptors(aDesc, chemicalStructureFile=None, smiles=None):
         -------
           >>> descriptors = get_descriptors(AlvaDesc(ALVADESC_LOCATION),outputPath + "1.sdf")
     """
-    if chemicalStructureFile==None:
+    if mol_structure_path==None and smiles != None:
         aDesc.set_input_SMILES(smiles)
+    elif mol_structure_path != None:
+        file_type = get_file_type(mol_structure_path)
+        aDesc.set_input_file(mol_structure_path, file_type)
     else:
-        file_type = get_file_type(chemicalStructureFile)
-        aDesc.set_input_file(chemicalStructureFile, file_type)
+        raise ValueError("SDF or SMILES should be specified")
     if not aDesc.calculate_descriptors('ALL'):
         raise RuntimeError('AlvaDesc Error ' + aDesc.get_error())
     else:
         descriptors = aDesc.get_output()[0]
         return descriptors
 
-def generate_vector_fingerprints(aDesc, chemicalStructureFile = None, smiles = None):
+def generate_vector_fingerprints(aDesc, mol_structure_path = None, smiles = None):
     """ 
         Generate an array containing binary values of the fingerprints ECFP, MACCSFP and PFP in in that order. 
 
         Syntax
         ------
-          [obj] = generate_vector_fingerprints(aDesc, chemicalStructureFile)
+          [obj] = generate_vector_fingerprints(aDesc, mol_structure_path)
 
         Parameters
         ----------
             [in] aDesc (AlvaDesc instance): instance of the aDesc client
-            [in] chemicalStructureFile (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin.
-            [in] SMILES (str): structure represented by SMILES instead of a file. If it is specified, chemicalStructureFile is ignored
+            [in] mol_structure_path (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin.
+            [in] smiles (str): structure represented by SMILES instead of a file. If it is specified, mol_structure_path is ignored
 
         Returns
         -------
@@ -426,7 +821,7 @@ def generate_vector_fingerprints(aDesc, chemicalStructureFile = None, smiles = N
         Exceptions
         ----------
           TypeError:
-            If the chemicalStructureFile is not smiles, mol, sdf, mol2 or hin
+            If the mol_structure_path is not smiles, mol, sdf, mol2 or hin
 
           RuntimeError:
             If aDesc gets an error calculating the fingerprints
@@ -436,9 +831,9 @@ def generate_vector_fingerprints(aDesc, chemicalStructureFile = None, smiles = N
           >>> fingerprints_pubchem1 = generate_vector_fingerprints(AlvaDesc(ALVADESC_LOCATION),outputPath + "1.sdf")
     """
 
-    ECFP_fingerprint = get_fingerprint(aDesc, chemicalStructureFile, smiles, 'ECFP')
-    MACCSFP_fingerprint = get_fingerprint(aDesc, chemicalStructureFile, smiles, 'MACCSFP')
-    PFP_fingerprint = get_fingerprint(aDesc, chemicalStructureFile, smiles, 'PFP')
+    ECFP_fingerprint = get_fingerprint(aDesc, mol_structure_path, smiles, FingerprintType.ECFP)
+    MACCSFP_fingerprint = get_fingerprint(aDesc, mol_structure_path, smiles, FingerprintType.MACCSFP)
+    PFP_fingerprint = get_fingerprint(aDesc, mol_structure_path, smiles, FingerprintType.PFP)
 
 
     ECFP_ints_list = list_of_ints_from_str(ECFP_fingerprint)
@@ -451,19 +846,25 @@ def generate_vector_fingerprints(aDesc, chemicalStructureFile = None, smiles = N
     fingerprints.extend(PFP_fingerprint)
     return fingerprints
 
-def generate_vector_fps_descs(aDesc, chemicalStructureFile, fingerprint_types = ("ECFP", "MACCSFP", "PFP"), descriptors = True):
+def generate_vector_fps_descs(
+    aDesc, 
+    mol_structure_path=None, 
+    smiles = None, 
+    fingerprint_types: Tuple[FingerprintType, ...] = (FingerprintType.ECFP, FingerprintType.MACCSFP, FingerprintType.PFP), 
+    descriptors = True):
     """ 
         Generate an array containing binary values of the descriptors and fingerprints ECFP, MACCSFP and PFP in in that order. 
 
         Syntax
         ------
-          [obj] = generate_vector_fps_descs(aDesc, chemicalStructureFile, fingerprint_types, descriptors)
+          [obj] = generate_vector_fps_descs(aDesc, mol_structure_path, fingerprint_types, descriptors)
 
         Parameters
         ----------
             [in] aDesc (AlvaDesc instance): instance of the aDesc client
-            [in] chemicalStructureFile (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
-            [in] fingerprints (tuple of Strings): Fingerprints to be calculated
+            [in] mol_structure_path (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] smiles (str): SMILES representing the molecule
+            [in] fingerprints (tuple of FingerprintType): Fingerprints to be calculated
             [in] descriptors (Boolean): include ALL descriptors
 
 
@@ -474,7 +875,7 @@ def generate_vector_fps_descs(aDesc, chemicalStructureFile, fingerprint_types = 
         Exceptions
         ----------
           TypeError:
-            If the chemicalStructureFile is not smiles, mol, sdf, mol2 or hin
+            If the mol_structure_path is not smiles, mol, sdf, mol2 or hin
 
           ValueError:
             If the fingerprints is not a tuple object or the elements of the tuple are not recognized (ECFP, MACCSFP, PFP)
@@ -489,12 +890,12 @@ def generate_vector_fps_descs(aDesc, chemicalStructureFile, fingerprint_types = 
     """
     result_vector = []
     if isinstance(descriptors,bool) and descriptors:
-        descriptors_list = get_descriptors(aDesc, chemicalStructureFile)
+        descriptors_list = get_descriptors(aDesc, mol_structure_path, smiles)
         result_vector.extend(descriptors_list)
     if isinstance(fingerprint_types,tuple):
         for fingerprint_type in fingerprint_types:
-            check_fingerprint_type(fingerprint_type)
-            fingerprint_str = get_fingerprint(aDesc, chemicalStructureFile, fingerprint_type)
+            
+            fingerprint_str = get_fingerprint(aDesc, mol_structure_path, smiles, fingerprint_type)
             fingerprint_vector = list_of_ints_from_str(fingerprint_str)
 
             result_vector.extend(fingerprint_vector)
@@ -503,18 +904,19 @@ def generate_vector_fps_descs(aDesc, chemicalStructureFile, fingerprint_types = 
 
     return result_vector
 
-def generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep=","):
+def generate_vector_fingerprints_CSV(aDesc, mol_structure_path, smiles = None, sep=","):
     """ 
         Generate a string containing binary values of the fingerprints ECFP, MACCSFP and PFP in in that order. 
 
         Syntax
         ------
-          str = generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep)
+          str = generate_vector_fingerprints_CSV(aDesc, mol_structure_path, smiles, sep)
 
         Parameters
         ----------
             [in] aDesc (AlvaDesc instance): instance of the aDesc client
-            [in] chemicalStructureFile (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] mol_structure_path (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] smiles (str): SMILES representing the molecule
             [in] sep (str): separator for the csv String
 
         Returns
@@ -524,16 +926,16 @@ def generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep=","):
         Exceptions
         ----------
           TypeError:
-            If the chemicalStructureFile is not smiles, mol, sdf, mol2 or hin
+            If the mol_structure_path is not smiles, mol, sdf, mol2 or hin
 
           RuntimeError:
             If aDesc gets an error calculating the fingerprints
 
         Example
         -------
-          >>> csv_fingerprints_pubchem1 = generate_vector_fingerprints_CSV(AlvaDesc(ALVADESC_LOCATION),outputPath + "1.sdf", ",")
+          >>> csv_fingerprints_pubchem1 = generate_vector_fingerprints_CSV(AlvaDesc(ALVADESC_LOCATION),outputPath + "1.sdf", None, ",")
     """
-    fingerprints = generate_vector_fingerprints(aDesc, chemicalStructureFile)
+    fingerprints = generate_vector_fingerprints(aDesc, mol_structure_path)
     str_fingerprints_csv = ""
     for element in fingerprints:
         element = int(element)
@@ -549,18 +951,19 @@ def generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep=","):
 
 
 
-def generate_vector_descriptors_CSV(aDesc, chemicalStructureFile, sep=","):
+def generate_vector_descriptors_CSV(aDesc, mol_structure_path, smiles = None, sep=","):
     """ 
         Generate a string containing the descriptors in csv
 
         Syntax
         ------
-          str = generate_vector_descriptors_CSV(aDesc, chemicalStructureFile, sep)
+          str = generate_vector_descriptors_CSV(aDesc, mol_structure_path, sep)
 
         Parameters
         ----------
             [in] aDesc (AlvaDesc instance): instance of the aDesc client
-            [in] chemicalStructureFile (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] mol_structure_path (str): File name containing the Chemical structure represented by smiles, mol, sdf, mol2 or hin
+            [in] smiles (str): SMILES representing the molecule
             [in] sep (str): separator for the csv String
 
         Returns
@@ -570,16 +973,16 @@ def generate_vector_descriptors_CSV(aDesc, chemicalStructureFile, sep=","):
         Exceptions
         ----------
           TypeError:
-            If the chemicalStructureFile is not smiles, mol, sdf, mol2 or hin
+            If the mol_structure_path is not smiles, mol, sdf, mol2 or hin
 
           RuntimeError:
             If aDesc gets an error calculating the fingerprints
 
         Example
         -------
-          >>> csv_descriptors_pubchem1 = generate_vector_descriptors_CSV(AlvaDesc(ALVADESC_LOCATION),outputPath + "1.sdf", ",")
+          >>> csv_descriptors_pubchem1 = generate_vector_descriptors_CSV(AlvaDesc(ALVADESC_LOCATION),outputPath + "1.sdf", None, ",")
     """
-    descriptors = get_descriptors(aDesc,chemicalStructureFile)
+    descriptors = get_descriptors(aDesc,mol_structure_path, smiles)
     str_descriptors_csv = ""
     for element in descriptors:
         if (isinstance(element,(int,str))):
@@ -594,13 +997,265 @@ def generate_vector_descriptors_CSV(aDesc, chemicalStructureFile, sep=","):
     return str_descriptors_csv
     
 
+def write_2D_file(output_path, inchi=None, inchi_key=None, smiles=None):
+    """
+    Converts an InChI or SMILES string to a 2D RDKit molecule and saves it as an SDF file 
+    with the inchiKey.sdf.
+
+    Parameters:
+    ----------
+    output_path : str
+        The directory where the file should be saved.
+    inchi : str, optional
+        The InChI (IUPAC International Chemical Identifier) string of the molecule.
+    smiles : str, optional
+        The SMILES (Simplified Molecular Input Line Entry System) representation 
+        of the molecule.
+
+    Returns:
+    -------
+    str
+        Full path of the saved SDF file.
+
+    Raises:
+    ------
+    ValueError:
+        - If neither InChI nor SMILES is provided.
+    FileNotFoundError:
+        - If the specified output directory does not exist.
+
+    Notes:
+    ------
+    - Calls `inchi_to_2d_structure_rdkit` to generate a 2D molecule.
+    - Extracts the InChI Key and uses it as the filename.
+    - If the directory does not exist, an error is raised.
+
+    Example:
+    --------
+    ```python
+    write_2D_file("output_folder", inchi="InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3")
+    ```
+    """
+    file_name = f"{inchi_key}.sdf"
+    full_path = os.path.join(output_path, file_name)
+    if os.path.exists(full_path):
+        return full_path  # Return the existing file path
+    
+    # Convert InChI or SMILES to a 2D molecule
+    mol = inchi_to_2d_structure_rdkit(inchi=inchi, smiles=smiles)
+
+    # Get the InChI Key
+    inchi_key = Chem.InchiToInchiKey(Chem.MolToInchi(mol))
+
+    # Construct the filename based on InChI Key
+    file_name = f"{inchi_key}.sdf"
+    full_path = os.path.join(output_path, file_name)
+    # Ensure the output directory exists
+    if not os.path.exists(output_path):
+        raise FileNotFoundError(f"Output directory '{output_path}' does not exist.")
+
+    # Write molecule to SDF file
+    Chem.MolToMolFile(mol, full_path)
+
+    return full_path
+
+def write_3D_file(output_path, inchi=None, inchi_key=None, smiles=None):
+    """
+    Converts an InChI or SMILES string to a 3D RDKit molecule and saves it as an SDF file with the inchiKey.sdf.
+
+    Parameters:
+    ----------
+    output_path : str
+        The directory where the file should be saved.
+    inchi : str, optional
+        The InChI (IUPAC International Chemical Identifier) string of the molecule.
+    smiles : str, optional
+        The SMILES (Simplified Molecular Input Line Entry System) representation 
+        of the molecule.
+
+    Returns:
+    -------
+    str
+        Full path of the saved SDF file.
+
+    Raises:
+    ------
+    ValueError:
+        - If neither InChI nor SMILES is provided.
+        - If the molecule does not contain 3D coordinates.
+        - If the file name does not end with `.sdf`.
+    FileNotFoundError:
+        - If the specified output directory does not exist.
+
+    Notes:
+    ------
+    - Calls `inchi_to_3d_structure_rdkit` to generate a 3D molecule.
+    - Ensures that the molecule has 3D coordinates before saving.
+    - If the directory does not exist, an error is raised.
+
+    Example:
+    --------
+    ```python
+    write_3D_file("output_folder", "ethanol.sdf", inchi="InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3")
+    ```
+    """
+
+    file_name = f"{inchi_key}.sdf"
+    full_path = os.path.join(output_path, file_name)
+    if os.path.exists(full_path):
+        return full_path  # Return the existing file path
+    
+    # Generate 3D molecule
+    mol = inchi_to_3d_structure_rdkit(inchi=inchi, smiles=smiles)
+
+    if not mol.GetConformer().Is3D():
+        raise ValueError("The generated molecule does not have 3D coordinates.")
+
+    # Get the InChI Key
+    inchi_key = Chem.InchiToInchiKey(Chem.MolToInchi(mol))
+
+    file_name = f"{inchi_key}.sdf"
+    full_path = os.path.join(output_path, file_name)
+
+    # Ensure the output directory exists
+    if not os.path.exists(output_path):
+        raise FileNotFoundError(f"Output directory '{output_path}' does not exist.")
+
+    # Write molecule to SDF file
+    Chem.MolToMolFile(mol, full_path)
+
+    return full_path
+
+
+def inchi_to_3d_structure_rdkit(inchi=None, smiles=None):
+    """
+    Converts an InChI or SMILES string into a 3D molecular structure using RDKit.
+
+    This function takes either an InChI or SMILES string, converts it into an RDKit 
+    molecule object, generates 3D coordinates, and optimizes the structure.
+
+    Parameters:
+    ----------
+    inchi : str, optional
+        The InChI (IUPAC International Chemical Identifier) string of the molecule.
+    smiles : str, optional
+        The SMILES (Simplified Molecular Input Line Entry System) representation 
+        of the molecule.
+
+    Returns:
+    -------
+    mol : rdkit.Chem.Mol
+        An RDKit molecule object with 3D coordinates.
+
+    Raises:
+    ------
+    ValueError:
+        - If neither InChI nor SMILES is provided.
+        - If the given InChI or SMILES cannot be converted into an RDKit molecule.
+
+    Notes:
+    ------
+    - If an InChI is provided, it is converted into an RDKit molecule, and the 
+      corresponding SMILES string is generated.
+    - If a SMILES string is provided, it is converted into an RDKit molecule, and 
+      the corresponding InChI string is generated.
+    - Hydrogen atoms are explicitly added before 3D generation.
+    - The function first attempts to generate 3D coordinates using `AllChem.ETKDG()`.
+      If this fails, it retries using random coordinates.
+    - The 3D structure is optimized using the UFF (Universal Force Field) method.
+
+    Example:
+    --------
+    ```python
+    from rdkit import Chem
+
+    inchi_str = "InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3"
+    mol = inchi_to_3d_structure_rdkit(inchi=inchi_str)
+    Chem.MolToMolFile(mol, "output.sdf")
+    ```
+    """
+    # Convert InChI to RDKit molecule object
+    if inchi is None and smiles is None:
+        raise ValueError("Either InChI or SMILES must be provided")
+    elif inchi is not None:
+        mol = Chem.MolFromInchi(inchi)
+        smiles = Chem.MolToSmiles(mol)
+    elif smiles is not None:
+        mol = Chem.MolFromSmiles(smiles)
+        inchi = get_inchi_from_smiles(smiles)
+    
+    if mol is None:
+        raise ValueError("Invalid InChI string")
+    
+    # Add hydrogen atoms to the molecule
+    mol = Chem.AddHs(mol)
+    
+    # Generate 3D coordinates
+    result = AllChem.EmbedMolecule(mol, AllChem.ETKDG())
+    if result == -1:
+        result = AllChem.EmbedMolecule(mol, useRandomCoords=True)
+    
+    # Optimize the 3D structure
+    AllChem.UFFOptimizeMolecule(mol)
+    
+    return mol
+
+def inchi_to_2d_structure_rdkit(inchi=None, smiles=None):
+    """
+    Converts an InChI or SMILES string into a 2D molecular structure using RDKit.
+
+    Parameters:
+    ----------
+    inchi : str, optional
+        The InChI (IUPAC International Chemical Identifier) string of the molecule.
+    smiles : str, optional
+        The SMILES (Simplified Molecular Input Line Entry System) representation 
+        of the molecule.
+
+    Returns:
+    -------
+    mol : rdkit.Chem.Mol
+        An RDKit molecule object with 2D coordinates.
+
+    Raises:
+    ------
+    ValueError:
+        - If neither InChI nor SMILES is provided.
+        - If the given InChI or SMILES cannot be converted into an RDKit molecule.
+
+    Notes:
+    ------
+    - Uses RDKit’s `Compute2DCoords()` to ensure the molecule is represented in 2D.
+    - Hydrogen atoms are explicitly added before coordinate generation.
+    """
+    if inchi is None and smiles is None:
+        raise ValueError("Either InChI or SMILES must be provided")
+
+    if inchi is not None:
+        mol = Chem.MolFromInchi(inchi)
+    else:
+        mol = Chem.MolFromSmiles(smiles)
+
+    if mol is None:
+        raise ValueError("Invalid InChI or SMILES string")
+
+    # Add hydrogen atoms
+    mol = Chem.AddHs(mol)
+
+    # Generate 2D coordinates
+    Chem.rdDepictor.Compute2DCoords(mol)
+
+    return mol
+
+
 def main():
-    # VARIABLES FOR TESTINS. CHANGE THE PROGRAM AND FILE PATHS IF YOU RUN IT LOCALLY
+    # VARIABLES FOR TESTING. CHANGE THE PROGRAM AND FILE PATHS IF YOU RUN IT LOCALLY
     aDescPath = ALVADESC_LOCATION
     aDesc = AlvaDesc(aDescPath)
-    sdfPath = outputPath + "SDF/"
+    sdfPath = '/home/ceu/research/repos/cmm_rt_shared/SDF/'
+    sdfPath = sdfPath + "3D/"
     inputFile ="1.sdf"
-    
+
     print("=================================================================.")
     print("Test Case 1: File type of SDF")
     print("=================================================================.")
@@ -616,7 +1271,7 @@ def main():
     print("Test Case 2: ECFP of pubchem id1")
     print("=================================================================.")
     expResult = "0000001000000000000000000000000000000000000000000000000000000000000000000000010000100000000010000000010000000000001011000000000000010000000000000001000000000000000000000000000000000000000000000000000010000000000000000000000000000000000001000010000001000100000010000000000000001100010000000000000000100000000000000001000010000000000000000000000000000100000100000000000000000000000000010000010000000000000000001001000000000000100000000000000000000000100000001000000001000000000000000010000000010000000000000000000000000000000000000000000100000000000000000100000000000000000000000000000000000100000000000010000000000010001000001001000000010000000000000000000011100000000000000000010000010000000000001000001000000000000000000000000000000000000000100000000000000000000000000000000000000000000001110000000000000000000001000001000000000000000000000000000000010100000000000000000100000000000000000000000000000010000000000000001010000000001000101000000000000000000000100000000000000000000000000000000000010000000000000001000000000000"
-    actualResult = get_fingerprint(aDesc, sdfPath + inputFile, fingerprint_type='ECFP')
+    actualResult = get_fingerprint(aDesc, sdfPath + inputFile, fingerprint_type=FingerprintType.ECFP)
     
     if expResult == actualResult:
         print("Test PASS. ECFP of pubchem id1 correctly calculated")
@@ -627,7 +1282,7 @@ def main():
     print("Test Case 3: MACCSFP of pubchem id1")
     print("=================================================================.")
     expResult = "0000000000000000000000000000010000000000000000001000000000000000000000000100000000001100100010100001000000010001001000000110010000010001000110000101100111101111100100"
-    actualResult = get_fingerprint(aDesc, sdfPath + inputFile, fingerprint_type='MACCSFP')
+    actualResult = get_fingerprint(aDesc, sdfPath + inputFile, fingerprint_type=FingerprintType.MACCSFP)
     
     if expResult == actualResult:
         print("Test PASS. MACCSFP of pubchem id1 correctly calculated")
@@ -638,7 +1293,7 @@ def main():
     print("Test Case 4: PFP of pubchem id1")
     print("=================================================================.")
     expResult = "0000000000000000000000000000000000000000000000000000000000000000000000000000010000100000000010100000010000000000001010000001000000010010000000000000000000010000000000000000000000000100000000000001000000000000000000000000000000000000000000000010100001000000000010000100010000001100010000000000001000100000000100000000100011000000000000100000000001000100000000000000000000000000000000010000010000000000000000001001000000000000100000000000000000000000100000001010000001000000000000000000000101001000000000000000000000000000000000000000000100010000000000000100000000000000000000010010000000000100000000000010000000000010001000001000000000010000000000000000000111000000000000001000000000010000000000000000001000000000000000000000000000000010010000110100001000000000000000000000000000000000000000110000000000000000000001000001000000000000000000000000000000000100000000000000000000100000000010000100000000000010000000010000000010001000001000100000000000000000000000100000000000000001000000000100000000010000000000000001000000000000"
-    actualResult = get_fingerprint(aDesc, sdfPath + inputFile, fingerprint_type='PFP')
+    actualResult = get_fingerprint(aDesc, sdfPath + inputFile, fingerprint_type=FingerprintType.PFP)
     
     if expResult == actualResult:
         print("Test PASS. PFP of pubchem id1 correctly calculated")
@@ -656,8 +1311,6 @@ def main():
     else:
         print("Test FAIL. Check the method get_descriptors(aDesc, structureFileName)." + " RESULT: " + str(actualResult))
 
-    
-
     print("=================================================================.")
     print("Test Case 6: Fingerprints of pubchem id1")
     print("=================================================================.")
@@ -668,20 +1321,21 @@ def main():
     if expResult == actualResult:
         print("Test PASS. The CSV Vector from fingerprints has been correctly implemented.")
     else:
-        print("Test FAIL. Check the method generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep)." + " RESULT: " + str(actualResult))
+        print("Test FAIL. Check the method generate_vector_fingerprints_CSV(aDesc, mol_structure_path, sep)." + " RESULT: " + str(actualResult))
     
     print("=================================================================.")
     print("Test Case 7A: Fingerprints of SMILES")
     print("=================================================================.")
+    smiles = 'CC(=O)OC(CC(=O)[O-])C[N+](C)(C)C'
     expResult = [0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,1,0,0,0,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,1,0,0,1,0,0,0,0,0,0,1,1,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,1,1,0,0,0,0,1,0,1,1,0,0,1,1,1,1,0,1,1,1,1,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,1,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1,0,0,0,0,1,1,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0]
     
-    actualResult = generate_vector_fingerprints(aDesc, smiles = 'CC(=O)OC(CC(=O)[O-])C[N+](C)(C)C')
+    actualResult = generate_vector_fingerprints(aDesc, smiles = smiles)
     
     
     if expResult == actualResult:
         print("Test PASS. The CSV Vector from fingerprints has been correctly implemented.")
     else:
-        print("Test FAIL. Check the method generate_vector_fingerprints_CSV(aDesc,  smiles = 'CC(=O)OC(CC(=O)[O-])C[N+](C)(C)C', sep)." + " RESULT: " + str(actualResult))
+        print("Test FAIL. Check the method generate_vector_fingerprints_CSV(aDesc,  smiles = smiles, sep)." + " RESULT: " + str(actualResult))
 
 
     print("=================================================================.")
@@ -689,15 +1343,40 @@ def main():
     print("=================================================================.")
     expResult = "0100000000010000000000000000000001000000000000000000000000000000000001000000000010000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000100000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000001100000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000101000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000010000000000000000000000000000000000000000000010000000000000000000100000000000000000000000000000000000000000000000000000000000000000000010000000000000000000001000000000000000000000000000000100000010000000000000000000000000000001000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000001000000"
     
-    actualResult = get_morgan_fingerprint_rdkit(smiles = 'CC(=O)OC(CC(=O)[O-])C[N+](C)(C)C')
+    actualResult = get_morgan_fingerprint_rdkit(smiles = smiles)
     
     
     if expResult == actualResult:
         print("Test PASS. The Morgan Fingerprint has been correctly implemented.")
     else:
         print("Test FAIL. Check the method get_morgan_fingerprint_rdkit(smiles)." + " RESULT: " + str(actualResult))
+    
+    
+    print("=================================================================.")
+    print("Test Case 7C: MAP4 Fingerprints of SMILES")
+    print("=================================================================.")
+    
+    expResult = ""
 
+    actualResult = get_map4_fingerprint(smiles = smiles)
+    
+    if expResult == actualResult:
+        print("Test PASS. The MAP4 Fingerprint has been correctly implemented.")
+    else:
+        print("Test FAIL. Check the method get_map4_fingerprint_rdkit(smiles)." + " RESULT: " + str(actualResult))
+    '''
+    print("=================================================================.")
+    print("Test Case 7D: MHFP6 Fingerprints of SMILES")
+    print("=================================================================.")
+    expResult = ""
 
+    actualResult = get_mhfp6_fingerprint(smiles = smiles)
+    print(actualResult)
+    if expResult == actualResult:
+        print("Test PASS. The MAP4 Fingerprint has been correctly implemented.")
+    else:
+        print("Test FAIL. Check the method get_map4_fingerprint_rdkit(smiles)." + " RESULT: " + str(actualResult))
+    '''
     print("=================================================================.")
     print("Test Case 8: Descriptors and Fingerprints of pubchem id1")
     print("=================================================================.")
@@ -723,7 +1402,7 @@ def main():
     if expResult == actualResult:
         print("Test PASS. The CSV Vector from fingerprints has been correctly implemented.")
     else:
-        print("Test FAIL. Check the method generate_vector_fingerprints_CSV(aDesc, chemicalStructureFile, sep)." + " RESULT: " + str(actualResult))
+        print("Test FAIL. Check the method generate_vector_fingerprints_CSV(aDesc, mol_structure_path, sep)." + " RESULT: " + str(actualResult))
 
 
     print("=================================================================.")
@@ -733,16 +1412,7 @@ def main():
     print("=================================================================.")
     print("Test Case 11: Checking fingerpints types")
     print("=================================================================.")
-    try: 
-        check_fingerprint_type("PFP")
-    except Exception as e:
-        print("Test FAIL. Check the method check_fingerprint_type(fingerprintType). It should accept PFP, ECFP and MACCSFP values" + e)
-    try: 
-        check_fingerprint_type("OPFP")
-        print("Test FAIL. Check the method check_fingerprint_type(fingerprintType). It should not accept any other value than PFP, ECFP and MACCSFP" + e)
-    except Exception as e:
-        print("Test PASS Checking fingerpints types. ")
-    
+
     print("=================================================================.")
     print("Test Case 12: Checking INCHI KEY from Pubchem ID ")
     print("=================================================================.")
@@ -753,7 +1423,7 @@ def main():
         else: 
             print("Test FAIL. Check the INCHI KEY of pubchem 1" + e)
     except Exception as e:
-        print("est FAIL. Check the call to pubchem API" + e)
+        print("Test FAIL. Check the call to pubchem API" + e)
     try: 
         inchi, inchi_key = get_inchi_and_inchi_key_from_pubchem("asd")
         print("Test FAIL. Check the method get_inchi_and_inchi_key_from_pubchem(inchi_key)")
@@ -772,7 +1442,7 @@ def main():
     except Exception as e:
         print("Test FAIL. Check the LM ID of inchi key RDHQFKQIGNGIED-UHFFFAOYSA-N" + e)
     try: 
-        inchi_key = get_lm_id_from_inchi_key("asd")
+        lm_id = get_lm_id_from_inchi_key("asd")
         print("Test FAIL. Check the LM ID of inchi key RDHQFKQIGNGIED-UHFFFAOYSA-N" + e)
     except Exception as e:
         print("Test PASS Checking wrong inchi keys in LM ID. ")
@@ -797,12 +1467,12 @@ def main():
     except Exception as e:
         print("Test PASS Checking wrong inchi keys in CLASSYFIRE ")
     try: 
-        inchi_key = is_a_lipid_from_classyfire("asd","asd")
+        is_a_lipid = is_a_lipid_from_classyfire("asd","asd")
         print("Test FAIL. Check the classifcation of inchi key" + str(e))
     except Exception as e:
         print("Test PASS Checking wrong inchi keys in CLASSYFIRE ")
     try: 
-        inchi_key = is_a_lipid_from_classyfire("InChI=1S/C6H9N3S/c1-3-4-8-6(10-2)9-5-7/h3H,1,4H2,2H3,(H,8,9)", "QTNZEFGUDULPSY-UHFFFAOYSA-N")
+        is_a_lipid = is_a_lipid_from_classyfire("InChI=1S/C6H9N3S/c1-3-4-8-6(10-2)9-5-7/h3H,1,4H2,2H3,(H,8,9)", "QTNZEFGUDULPSY-UHFFFAOYSA-N")
         print("Test FAIL. Check the classification of inchi key" + str(e))
     except Exception as e:
         if e.code == 500:
@@ -810,14 +1480,59 @@ def main():
         else:
             print("Test FAIL. Check the LM ID of inchi key" + str(e))
     try: 
-        inchi_key = is_a_lipid_from_classyfire("InChI=1S/C16H20FN3O3S/c1-12(2)24(21,22)20-10-8-16(17,9-11-20)15-18-14(19-23-15)13-6-4-3-5-7-13/h3-7,12H,8-11H2,1-2H3", "DSMCTAYHDQSAIU-UHFFFAOYSA-N")
-        print("Test FAIL. Check the classification of inchi key" + str(e))
+        is_a_lipid = is_a_lipid_from_classyfire("InChI=1S/C16H20FN3O3S/c1-12(2)24(21,22)20-10-8-16(17,9-11-20)15-18-14(19-23-15)13-6-4-3-5-7-13/h3-7,12H,8-11H2,1-2H3", "DSMCTAYHDQSAIU-UHFFFAOYSA-N")
+        if is_a_lipid:
+            print("Test FAIL. Check the classification of inchi key: ")
+        else:
+            print("Test PASS Checking not a lipid DSMCTAYHDQSAIU-UHFFFAOYSA-N")
     except Exception as e:
         if e.code == 500:
-            print("Test PASS Checking wrong inchi keys in CLASSYFIRE of a compound with inchi key QTNZEFGUDULPSY-UHFFFAOYSA-N")
+            print("Test WRONG checking if DSMCTAYHDQSAIU-UHFFFAOYSA-N is a lipid")
         else:
             print("Test FAIL. Check the LM ID of inchi key" + + str(e))
+    print("=================================================================.")
+    print("Test Case 15: Checking download SDF from pubchem")
+    print("=================================================================.")
+    try: 
+        
+        download_sdf_pubchem(2,sdfPath)
+        print("Test PASS Download SDF of Pubchem id: 2")
+    except Exception as e:
+        print("Test FAIL. Check lipids in classyfire" + str(e))
     
+    print("=================================================================.")
+    print("Test Case 16: Get PC ID From INCHI")
+    print("=================================================================.")
+    try: 
+        
+        pc_id = get_pubchemid_from_inchi("InChI=1S/C7H6O2/c8-7(9)6-4-2-1-3-5-6/h1-5H,(H,8,9)")
+        if int(pc_id) == 243:
+            print("Test PASS Download SDF of Pubchem id: 2")
+        else:
+            print("Test FAIL. Check the pubchem id of inchi key")
+    except Exception as e:
+        print("Test FAIL. Check lipids in classyfire" + str(e))
+
+
+    print("=================================================================")
+    print("Test Case 17: Get InChI From SMILES")
+    print("=================================================================")
+    try:
+        smiles = "CCO"
+        expected_inchi = "InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3"
+        obtained_inchi = get_inchi_from_smiles(smiles)
+        
+        if obtained_inchi == expected_inchi:
+            print("Test PASS: Obtained InChI matches the expected InChI.")
+        else:
+            print("Test FAIL: Obtained InChI does not match the expected InChI.")
+            print("Expected InChI:", expected_inchi)
+            print("Obtained InChI:", obtained_inchi)
+    except Exception as e:
+        print("Test FAIL: An exception occurred.")
+        print(e)
+    
+
 if __name__ == "__main__":
     main()
 
