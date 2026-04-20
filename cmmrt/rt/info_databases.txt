@@ -83,7 +83,12 @@ Llamada:
 --input_file_type TWO_D
 
 
-
+/bin/python3 /home/ceu/research/repos/cmmrt/cmmrt/rt/build_data_cmd.py \
+--input_path /home/ceu/research/repos/cmm_rt_shared/ccsbase_2026_tino \
+--input_file ccsbase_experimental.csv \
+--output_path /home/ceu/research/repos/cmm_rt_shared/ccsbase_2026_tino/ \
+--smiles_column_name SMI \
+--input_file_type THREE_D
 
 
 METLIN_LIPID_CCS: HECHOS 2D y 3D

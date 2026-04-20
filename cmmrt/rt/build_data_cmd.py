@@ -191,6 +191,8 @@ def main():
                     smiles = Chem.MolToSmiles(mol)
                     
             elif smiles_column_name:
+                if row[smiles_column_name] == None:
+                    continue
                 smiles = row[smiles_column_name].strip()
                 if not smiles:
                     continue
